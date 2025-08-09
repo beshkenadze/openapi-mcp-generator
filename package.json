@@ -1,0 +1,26 @@
+{
+  "name": "openapi-mcp-generator",
+  "private": true,
+  "packageManager": "bun@latest",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "changeset": "changeset",
+    "version:packages": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.5.0",
+    "@changesets/cli": "^2.27.1"
+  }
+}

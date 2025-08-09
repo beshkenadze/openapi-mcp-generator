@@ -7,18 +7,8 @@ export function generateServerFromOpenAPI(src: OpenAPISource, options: GenerateO
   mkdirSync(outDir, { recursive: true });
 
   const format = src.format ?? (src.path.endsWith(".yaml") || src.path.endsWith(".yml") ? "yaml" : "json");
-  if (format === "yaml") {
-    // Minimal placeholder until YAML parsing is added
-    throw new Error("YAML is not yet supported in this scaffold. Provide a JSON OpenAPI file or add a YAML parser.");
-  }
-
   const raw = readFileSync(src.path, "utf8");
-  let openapi: any;
-  try {
-    openapi = JSON.parse(raw);
-  } catch (e) {
-    throw new Error(`Failed to parse OpenAPI JSON: ${e}`);
-  }
+  const openapi = parseOpenApiString(raw, format);
 
   const serverName = options.name ?? inferName(openapi) ?? basename(options.outDir);
 
@@ -35,7 +25,8 @@ export function generateServerFromOpenAPI(src: OpenAPISource, options: GenerateO
       dev: "bun run src/index.ts"
     },
     dependencies: {
-      // "@modelcontextprotocol/sdk": "latest" // add when ready
+      "@modelcontextprotocol/sdk": "^1.0.0",
+      "zod": "^3.23.8"
     },
     devDependencies: {}
   } as const;
@@ -90,3 +81,35 @@ function inferName(doc: any): string | undefined {
     .replace(/(^-|-$)/g, "");
 }
 
+function parseOpenApiString(raw: string, format: "json" | "yaml") {
+  // Prefer Scalar OpenAPI parser if available, else fallback to YAML/JSON parse
+  if (format === "json") {
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      throw new Error(`Failed to parse OpenAPI JSON: ${e}`);
+    }
+  }
+
+  // YAML path
+  try {
+    // Try Scalar parser dynamically to keep optional typing
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const scalar: any = require("@scalar/openapi-parser");
+    if (scalar?.createParser) {
+      const parser = scalar.createParser();
+      const { openapi } = parser.parse(raw);
+      if (!openapi) throw new Error("Scalar parser returned no document");
+      return openapi;
+    }
+  } catch {
+    // ignore and fallback to yaml
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const YAML: any = require("yaml");
+    return YAML.parse(raw);
+  } catch (e) {
+    throw new Error(`Failed to parse OpenAPI YAML: ${e}`);
+  }
+}

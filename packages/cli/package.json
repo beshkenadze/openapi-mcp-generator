@@ -10,7 +10,7 @@
   "types": "dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap && tsc -p tsconfig.json --emitDeclarationOnly && bun run ./scripts/add-shebang.ts",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome lint .",

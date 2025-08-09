@@ -7,11 +7,15 @@
   "types": "dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap --external @scalar/openapi-parser --external yaml && tsc -p tsconfig.json --emitDeclarationOnly",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@scalar/openapi-parser": "^0.10.0",
+    "yaml": "^2.5.0"
   }
 }

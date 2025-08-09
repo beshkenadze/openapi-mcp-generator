@@ -1,0 +1,44 @@
+version: '3'
+
+vars:
+  SERVER_CMD: bun
+  SERVER_SCRIPT: packages/mcp-openapi-server/src/bin.ts
+  # Defaults adjusted to avoid common collisions
+  INSPECTOR_CLIENT_PORT: "8080"
+  INSPECTOR_SERVER_PORT: "9000"
+
+tasks:
+  install:
+    desc: Install all workspace dependencies
+    cmds:
+      - bun install
+
+  typecheck:
+    desc: TypeScript project-wide type checking
+    cmds:
+      - bun run typecheck
+
+  build:
+    desc: Build all packages (Turbo pipeline)
+    cmds:
+      - bun run build
+
+  build:server:
+    desc: Build the MCP server package
+    cmds:
+      - bun run --filter @workspace/mcp-openapi-server build
+
+  dev:server:
+    desc: Run the MCP server on stdio
+    cmds:
+      - bun run --filter @workspace/mcp-openapi-server dev
+
+  inspector:cli:
+    desc: Use MCP Inspector in CLI mode to list tools from the local server
+    cmds:
+      - CLIENT_PORT={{.INSPECTOR_CLIENT_PORT}} SERVER_PORT={{.INSPECTOR_SERVER_PORT}} npx @modelcontextprotocol/inspector --cli {{.SERVER_CMD}} {{.SERVER_SCRIPT}} --method tools/list
+
+  inspector:ui:
+    desc: Launch MCP Inspector UI connected to the local server
+    cmds:
+      - CLIENT_PORT={{.INSPECTOR_CLIENT_PORT}} SERVER_PORT={{.INSPECTOR_SERVER_PORT}} npx @modelcontextprotocol/inspector {{.SERVER_CMD}} {{.SERVER_SCRIPT}}

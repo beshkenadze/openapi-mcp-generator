@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/mcp-openapi-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "openapi"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm --sourcemap",
+    "dev": "bun run src/bin.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "clean": "rimraf dist",
+    "test:inspector": "RUN_INSPECTOR_TEST=1 bun test src/inspector.test.ts --timeout 45000"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@scalar/openapi-parser": "^0.10.0",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "msw": "^2.4.10"
+  }
+}

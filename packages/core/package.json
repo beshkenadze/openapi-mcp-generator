@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@scalar/openapi-parser": "^0.10.0",
-    "yaml": "^2.5.0"
+    "ts-morph": "^26.0.0",
+    "yaml": "^2.5.0",
+    "zod": "^4.0.17"
   }
 }

@@ -1,115 +1,510 @@
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { dirname, resolve, basename } from "node:path";
-import type { GenerateOptions, OpenAPISource } from "./types";
+import {
+  IndentationText,
+  Project,
+  QuoteKind,
+  StructureKind,
+  Writers,
+} from "ts-morph";
+import { validate, dereference } from "@scalar/openapi-parser";
+import { readFileSync, writeFileSync } from "fs";
+import { z } from "zod";
+import { execSync } from "child_process";
+import type {
+  OpenAPISchema,
+  OpenAPIParameter,
+  OpenAPIRequestBody,
+  OpenAPIResponse,
+  OpenAPIOperation,
+  OpenAPIPath,
+  OpenAPIInfo,
+  OpenAPIComponents,
+  OpenAPIDocument,
+  GeneratorOptions,
+} from "./types.js";
 
-export function generateServerFromOpenAPI(src: OpenAPISource, options: GenerateOptions) {
-  const outDir = resolve(options.outDir);
-  mkdirSync(outDir, { recursive: true });
+class OpenAPIMcpGenerator {
+  private project: Project;
+  private sourceFile: any;
+  private options: Required<GeneratorOptions>;
 
-  const format = src.format ?? (src.path.endsWith(".yaml") || src.path.endsWith(".yml") ? "yaml" : "json");
-  const raw = readFileSync(src.path, "utf8");
-  const openapi = parseOpenApiString(raw, format);
+  constructor(options: GeneratorOptions = {}) {
+    // Set default options
+    this.options = {
+      debug: false,
+      skipFormatting: false,
+      indentSize: 4,
+      quoteStyle: 'single',
+      trailingCommas: true,
+      ...options,
+    };
 
-  const serverName = options.name ?? inferName(openapi) ?? basename(options.outDir);
+    // Configure ts-morph project based on options
+    const indentationText = this.options.indentSize === 2 ? IndentationText.TwoSpaces :
+                           this.options.indentSize === 8 ? IndentationText.EightSpaces :
+                           IndentationText.FourSpaces;
+    
+    const quoteKind = this.options.quoteStyle === 'double' ? QuoteKind.Double : QuoteKind.Single;
 
-  // Emit a minimal MCP server skeleton (TypeScript)
-  const pkgJson = {
-    name: `@generated/${serverName}`,
-    version: "0.0.0",
-    private: true,
-    type: "module",
-    main: "dist/index.js",
-    types: "dist/index.d.ts",
-    scripts: {
-      build: "tsc -p tsconfig.json",
-      dev: "bun run src/index.ts"
-    },
-    dependencies: {
-      "@modelcontextprotocol/sdk": "^1.0.0",
-      "zod": "^3.23.8"
-    },
-    devDependencies: {}
-  } as const;
+    this.project = new Project({
+      manipulationSettings: {
+        indentationText,
+        quoteKind,
+        useTrailingCommas: this.options.trailingCommas,
+      },
+    });
+  }
 
-  writeFileSync(resolve(outDir, "package.json"), JSON.stringify(pkgJson, null, 2));
+  async generateFromOpenAPI(
+    openApiFilePath: string,
+    outputPath: string,
+    serverName: string
+  ): Promise<void> {
+    if (this.options.debug) {
+      console.log(`🔧 Generating MCP server from ${openApiFilePath}...`);
+    }
 
-  const tsconfig = {
-    extends: "../../tsconfig.json",
-    compilerOptions: {
-      outDir: "dist",
-      rootDir: "src",
-      module: "ESNext",
-      moduleResolution: "Bundler",
-      declaration: true,
-      noEmit: false,
-      composite: true
-    },
-    include: ["src"]
-  };
-  writeFileSync(resolve(outDir, "tsconfig.json"), JSON.stringify(tsconfig, null, 2));
-
-  const indexTs = `// Generated MCP server scaffold for ${serverName}
-// TODO: install and import the MCP SDK, then wire handlers to operations.
-
-export async function start() {
-  console.log("Starting MCP server: ${serverName}");
-  // Parse env/config, register tools based on OpenAPI operations...
-}
-
-if (import.meta.main) {
-  start();
-}
-`;
-  mkdirSync(resolve(outDir, "src"), { recursive: true });
-  writeFileSync(resolve(outDir, "src/index.ts"), indexTs);
-
-  const metaJson = {
-    info: openapi.info ?? null,
-    paths: Object.keys(openapi.paths ?? {})
-  };
-  writeFileSync(resolve(outDir, "openapi.meta.json"), JSON.stringify(metaJson, null, 2));
-
-  return { outDir, name: serverName, operations: Object.keys(openapi.paths ?? {}) };
-}
-
-function inferName(doc: any): string | undefined {
-  const title = doc?.info?.title as string | undefined;
-  if (!title) return undefined;
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function parseOpenApiString(raw: string, format: "json" | "yaml") {
-  // Prefer Scalar OpenAPI parser if available, else fallback to YAML/JSON parse
-  if (format === "json") {
+    // Parse OpenAPI document
+    const openApiContent = readFileSync(openApiFilePath, "utf-8");
+    
+    // Try strict validation first, but don't fail on metadata issues
     try {
-      return JSON.parse(raw);
-    } catch (e) {
-      throw new Error(`Failed to parse OpenAPI JSON: ${e}`);
+      const { valid, errors } = await validate(openApiContent);
+      if (!valid) {
+        console.warn("⚠️ OpenAPI validation warnings:", errors);
+        console.log("📝 Continuing with generation (metadata validation issues are non-critical)");
+      }
+    } catch (validationError) {
+      console.warn("⚠️ OpenAPI validation failed, but continuing:", validationError instanceof Error ? validationError.message : String(validationError));
+    }
+
+    const { schema } = await dereference(openApiContent);
+    if (!schema) {
+      throw new Error("Failed to dereference OpenAPI schema");
+    }
+
+    if (this.options.debug) {
+      console.log("✅ OpenAPI document parsed and validated");
+    }
+
+    // Create source file
+    this.sourceFile = this.project.createSourceFile(outputPath, "", {
+      overwrite: true,
+    });
+
+    // Generate the MCP server
+    this.generateImports();
+    this.generateServerSetup(
+      serverName,
+      schema.info?.title,
+      schema.info?.version
+    );
+    this.generateTools(schema.paths || {}, schema.components?.schemas || {});
+    this.generateTransportSetup();
+
+    // Save the file
+    await this.sourceFile.save();
+
+    // Format with Biome (if not skipped)
+    if (!this.options.skipFormatting) {
+      try {
+        if (this.options.debug) {
+          console.log("🎨 Formatting with Biome...");
+        }
+        execSync(`bunx @biomejs/biome format --write "${outputPath}"`, {
+          stdio: this.options.debug ? "inherit" : "pipe",
+        });
+        if (this.options.debug) {
+          console.log("✅ Code formatted with Biome");
+        }
+      } catch (error) {
+        if (this.options.debug) {
+          console.warn(
+            "⚠️ Biome formatting failed, but file was generated:",
+            error instanceof Error ? error.message : "Unknown error"
+          );
+        }
+      }
+    }
+
+    if (this.options.debug) {
+      console.log(`✅ MCP server generated at ${outputPath}`);
     }
   }
 
-  // YAML path
-  try {
-    // Try Scalar parser dynamically to keep optional typing
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const scalar: any = require("@scalar/openapi-parser");
-    if (scalar?.createParser) {
-      const parser = scalar.createParser();
-      const { openapi } = parser.parse(raw);
-      if (!openapi) throw new Error("Scalar parser returned no document");
-      return openapi;
-    }
-  } catch {
-    // ignore and fallback to yaml
+  private generateImports(): void {
+    this.sourceFile.addImportDeclarations([
+      {
+        namedImports: ["McpServer"],
+        moduleSpecifier: "@modelcontextprotocol/sdk/server/mcp.js",
+      },
+      {
+        namedImports: ["StdioServerTransport"],
+        moduleSpecifier: "@modelcontextprotocol/sdk/server/stdio.js",
+      },
+      {
+        namedImports: ["z"],
+        moduleSpecifier: "zod",
+      },
+    ]);
   }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const YAML: any = require("yaml");
-    return YAML.parse(raw);
-  } catch (e) {
-    throw new Error(`Failed to parse OpenAPI YAML: ${e}`);
+
+  private generateServerSetup(
+    serverName: string,
+    title?: string,
+    version?: string
+  ): void {
+    if (title) {
+      this.sourceFile.addStatements(`
+// ${title}
+// Generated from OpenAPI specification`);
+    }
+
+    this.sourceFile.addStatements(`const server = new McpServer({
+  name: '${serverName}',
+  version: '${version || "1.0.0"}'
+});`);
+  }
+
+  private generateTools(
+    paths: Record<string, OpenAPIPath>,
+    schemas: Record<string, OpenAPISchema>
+  ): void {
+    if (this.options.debug) {
+      console.log(
+        `📋 Generating ${Object.keys(paths).length} API endpoints as MCP tools...`
+      );
+    }
+
+    for (const [pathPattern, pathItem] of Object.entries(paths)) {
+      for (const [method, operation] of Object.entries(pathItem)) {
+        if (
+          ["get", "post", "put", "delete", "patch"].includes(
+            method.toLowerCase()
+          )
+        ) {
+          this.generateTool(
+            pathPattern,
+            method,
+            operation as OpenAPIOperation,
+            schemas
+          );
+        }
+      }
+    }
+  }
+
+  private generateTool(
+    pathPattern: string,
+    method: string,
+    operation: OpenAPIOperation,
+    schemas: Record<string, OpenAPISchema>
+  ): void {
+    const toolName = this.generateToolName(
+      pathPattern,
+      method,
+      operation.operationId
+    );
+    const inputSchema = this.generateInputSchema(operation, pathPattern);
+    const description =
+      operation.summary ||
+      operation.description ||
+      `${method.toUpperCase()} ${pathPattern}`;
+
+    if (this.options.debug) {
+      console.log(`  🔧 Generating tool: ${toolName}`);
+    }
+
+    // Generate the tool registration
+    this.sourceFile.addStatements(`
+server.registerTool(
+  '${toolName}',
+  {
+    title: '${this.escapeString(description)}',
+    description: '${this.escapeString(operation.description || description)}',
+    inputSchema: ${inputSchema}
+  },
+  async (params) => {
+    try {
+      // Build URL with path and query parameters
+      const url = buildUrl('${pathPattern}', params);
+
+      // Make HTTP request
+      const response = await fetch(url, {
+        method: '${method.toUpperCase()}',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildHeaders(params)
+        },
+        ${
+          method.toLowerCase() !== "get"
+            ? "body: buildRequestBody(params),"
+            : ""
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+      }
+
+      const data = await response.text();
+
+      return {
+        content: [{
+          type: 'text',
+          text: data
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: \`Error: \${error instanceof Error ? error.message : String(error)}\`
+        }],
+        isError: true
+      };
+    }
+  }
+);`);
+  }
+
+  private generateToolName(
+    pathPattern: string,
+    method: string,
+    operationId?: string
+  ): string {
+    if (operationId) {
+      return this.toCamelCase(operationId);
+    }
+
+    // Generate from path and method
+    const pathParts = pathPattern
+      .split("/")
+      .filter((part) => part && !part.startsWith("{"))
+      .map((part) => part.replace(/[^a-zA-Z0-9]/g, ""))
+      .filter((part) => part.length > 0);
+
+    const parts = [
+      method.toLowerCase(),
+      ...(pathParts.length > 0 ? pathParts : ["root"]),
+    ];
+    return this.toCamelCase(parts.join("_"));
+  }
+
+  private toCamelCase(str: string): string {
+    return str
+      .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
+      .replace(/^./, (match) => match.toLowerCase())
+      .replace(/[^a-zA-Z0-9]/g, "");
+  }
+
+  private toValidIdentifier(name: string): string {
+    // Convert to camelCase and ensure it's a valid JavaScript identifier
+    let identifier = this.toCamelCase(name);
+
+    // Ensure it starts with a letter or underscore
+    if (!/^[a-zA-Z_]/.test(identifier)) {
+      identifier = `_${identifier}`;
+    }
+
+    // Remove any remaining invalid characters
+    identifier = identifier.replace(/[^a-zA-Z0-9_]/g, "");
+
+    // Handle edge cases
+    if (identifier === "" || /^\d/.test(identifier)) {
+      identifier = `param_${identifier}`;
+    }
+
+    return identifier;
+  }
+
+  private generateInputSchema(
+    operation: OpenAPIOperation,
+    pathPattern: string
+  ): string {
+    const schemaProps: string[] = [];
+
+    // Add path parameters
+    const pathParams = pathPattern.match(/\{([^}]+)\}/g);
+    if (pathParams) {
+      for (const param of pathParams) {
+        const paramName = param.slice(1, -1);
+        const propName = this.toValidIdentifier(paramName);
+        schemaProps.push(
+          `${propName}: z.string().describe('Path parameter: ${paramName}')`
+        );
+      }
+    }
+
+    // Add query parameters and headers
+    if (operation.parameters) {
+      for (const param of operation.parameters) {
+        if (param.in === "query" || param.in === "header") {
+          const zodType = this.openApiTypeToZod(param.schema);
+          const description =
+            param.description ||
+            param.schema?.description ||
+            `${param.in} parameter: ${param.name}`;
+          const zodSchema = param.required
+            ? `${zodType}.describe('${this.escapeString(description)}')`
+            : `${zodType}.optional().describe('${this.escapeString(
+                description
+              )}')`;
+
+          // Use valid JavaScript identifier
+          const propName = this.toValidIdentifier(param.name);
+          schemaProps.push(`${propName}: ${zodSchema}`);
+        }
+      }
+    }
+
+    // Add request body for non-GET methods
+    if (operation.requestBody && operation.requestBody.content) {
+      const jsonContent = operation.requestBody.content["application/json"];
+      if (jsonContent?.schema) {
+        const bodyType = this.openApiTypeToZod(jsonContent.schema);
+        schemaProps.push(`body: ${bodyType}.describe('Request body')`);
+      }
+    }
+
+    if (schemaProps.length === 0) {
+      return "{}";
+    }
+
+    return `{\n    ${schemaProps.join(",\n    ")}\n  }`;
+  }
+
+  private openApiTypeToZod(schema?: OpenAPISchema): string {
+    if (!schema) return "z.unknown()";
+
+    switch (schema.type) {
+      case "string":
+        if (schema.enum) {
+          const enumValues = schema.enum
+            .map((v: string) => `'${v}'`)
+            .join(", ");
+          return `z.enum([${enumValues}])`;
+        }
+        if (schema.format === "date-time") return "z.string().datetime()";
+        if (schema.format === "date")
+          return "z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/)";
+        if (schema.format === "email") return "z.string().email()";
+        if (schema.format === "uri") return "z.string().url()";
+        return "z.string()";
+
+      case "number":
+      case "integer":
+        let numberSchema =
+          schema.type === "integer" ? "z.number().int()" : "z.number()";
+        if (schema.minimum !== undefined)
+          numberSchema += `.min(${schema.minimum})`;
+        if (schema.maximum !== undefined)
+          numberSchema += `.max(${schema.maximum})`;
+        return numberSchema;
+
+      case "boolean":
+        return "z.boolean()";
+
+      case "array":
+        const itemType = this.openApiTypeToZod(schema.items);
+        return `z.array(${itemType})`;
+
+      case "object":
+        if (schema.properties) {
+          const props = Object.entries(schema.properties)
+            .map(([key, prop]: [string, OpenAPISchema]) => {
+              const isRequired = schema.required?.includes(key);
+              const zodType = this.openApiTypeToZod(prop);
+              const propName = this.toValidIdentifier(key);
+              return `${propName}: ${
+                isRequired ? zodType : `${zodType}.optional()`
+              }`;
+            })
+            .join(", ");
+          return `z.object({ ${props} })`;
+        }
+        return "z.record(z.unknown())";
+
+      default:
+        return "z.unknown()";
+    }
+  }
+
+  private generateTransportSetup(): void {
+    this.sourceFile.addStatements(`
+// Helper functions
+function buildUrl(pathPattern: string, params: Record<string, any>): string {
+  const baseUrl = process.env.API_BASE_URL || 'https://api.example.com';
+
+  // Replace path parameters
+  let url = pathPattern;
+  const pathParams = pathPattern.match(/\\{([^}]+)\\}/g);
+  if (pathParams) {
+    for (const param of pathParams) {
+      const paramName = param.slice(1, -1);
+      if (params[paramName] !== undefined) {
+        url = url.replace(param, encodeURIComponent(String(params[paramName])));
+      }
+    }
+  }
+
+  // Add query parameters
+  const queryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && !pathParams?.some(p => p.slice(1, -1) === key) && key !== 'body') {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, String(v)));
+      } else {
+        queryParams.append(key, String(value));
+      }
+    }
+  }
+
+  const queryString = queryParams.toString();
+  const fullUrl = baseUrl + url + (queryString ? '?' + queryString : '');
+
+  return fullUrl;
+}
+
+function buildHeaders(params: Record<string, any>): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  // Add header parameters
+  for (const [key, value] of Object.entries(params)) {
+    // Simple heuristic: if key contains common header patterns
+    if (key.toLowerCase().includes('authorization') ||
+        key.toLowerCase().includes('token') ||
+        key.toLowerCase().includes('key') ||
+        key.toLowerCase().startsWith('x-')) {
+      headers[key] = String(value);
+    }
+  }
+
+  return headers;
+}
+
+function buildRequestBody(params: Record<string, any>): string | undefined {
+  if (params.body !== undefined) {
+    return typeof params.body === 'string' ? params.body : JSON.stringify(params.body);
+  }
+  return undefined;
+}
+
+// Start the server
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('MCP server is running...');
+}
+
+main().catch((error) => {
+  console.error('Server error:', error);
+  process.exit(1);
+});`);
+  }
+
+  private escapeString(str: string): string {
+    return str.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
   }
 }
+
+export { OpenAPIMcpGenerator };

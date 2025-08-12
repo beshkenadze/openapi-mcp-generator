@@ -1,10 +1,20 @@
-# openapi-mcp-generator (Monorepo)
+# OpenAPI → MCP Generator (Monorepo)
 
-A Turborepo monorepo for a library that generates MCP servers from OpenAPI specs. Uses Bun (PM/runtime), Biome v2, and TypeScript.
+Generate Model Context Protocol (MCP) servers from OpenAPI specifications. This monorepo contains the core generator library and a CLI, built with Bun, TypeScript, Turborepo, and Biome.
 
 ## Requirements
 
-- Bun (latest) installed locally: https://bun.sh
+- Bun 1.2+ installed locally: https://bun.sh
+- Node.js 18+ (runtime compatibility for generated projects)
+
+## Monorepo Structure
+
+- `packages/core`: Core generator library (`@workspace/core`)
+- `packages/cli`: CLI (`@workspace/cli`, bin: `mcpgen`)
+- `packages/tsconfig`: Shared TS config
+- `turbo.json`: Turborepo pipeline
+- `biome.json`: Biome config
+- `tsconfig.json`: Root TS config
 
 ## Install
 
@@ -12,53 +22,123 @@ A Turborepo monorepo for a library that generates MCP servers from OpenAPI specs
 bun install
 ```
 
-## Quick Usage
+## Quick Start
 
-CLI (scaffold a server from an OpenAPI JSON file):
+### CLI
+
 ```sh
-bun run -w packages/cli build
-bun run packages/cli -- --input ./examples/petstore.json --out ./servers/petstore --name petstore-mcp
+# build the CLI once (bundled)
+bun run --filter @workspace/cli build
+
+# generate a server from a local spec (after build)
+bun --bun packages/cli/dist/index.js \
+  --input ./path/to/petstore.yaml \
+  --output ./servers/petstore \
+  --name petstore-mcp \
+  --runtime bun \
+  --force
+
+# or run interactively from source (prompts fill missing values)
+bun run --filter @workspace/cli dev
 ```
 
-Library API:
+Generated output includes:
+- `openapi.meta.json`: summary of parsed operations
+- `mcp-server/index.ts`: single-file stdio MCP server
+- `.env.example`: base URL and optional API key
+- `package.json`: start/dev scripts
+
+Start the generated server:
+```sh
+cd ./servers/petstore
+bun run start
+# or
+bun --bun mcp-server/index.ts
+```
+
+### Library API
+
 ```ts
 import { generateServerFromOpenAPI } from "@workspace/core";
 
-generateServerFromOpenAPI({ path: "./petstore.json" }, { outDir: "./servers/petstore", name: "petstore-mcp" });
+const result = await generateServerFromOpenAPI(
+  { path: "./petstore.yaml" },
+  { outDir: "./servers/petstore", name: "petstore-mcp", runtime: "bun", force: true, layout: "bun" }
+);
+console.log(result.outDir, result.name, result.operations);
 ```
 
-## Lint & Format (Biome v2)
+## CLI Usage
 
+Non-interactive flags:
+- `--input, -i` OpenAPI spec path (`.yaml/.yml/.json`)
+- `--output, --out, -o` Output directory
+- `--name, -n` Server name (defaults to spec title or filename)
+- `--runtime, -r` `bun` (default) or `node`
+- `--force, -f` Overwrite when output directory is not empty
+- `--config, -c` YAML config file (see below)
+- `--help, -h` Show usage
+- `--version, -v` Show version
+
+Interactive mode:
+- Missing flags are collected via prompts.
+- Name suggestion uses spec `info.title` when available.
+- Output suggestion: `./servers/<slugified-name>`.
+- Overwrite confirmation for non-empty output directories (skip with `--force`).
+
+Minimal configuration file (`--config mcpgen.config.yaml`):
+```yaml
+openapi: ./path/to/spec.yaml
+name: my-mcp
+# out dir can still be passed as --out; if omitted, defaults to "output"
+```
+
+## Development
+
+Common scripts:
 ```sh
+# build everything
+bun run build
+
+# typecheck all packages
+bun run typecheck
+
+# lint and format (Biome)
 bun run lint
 bun run format
+
+# run tests across packages
+bun run test
+
+# build or test a specific package via Turbo filters
+bun run --filter @workspace/cli build
+bun run --filter @workspace/core test
 ```
 
-## Type-check and Build
-
+Optional Taskfile shortcuts (if `go-task` is installed):
 ```sh
-bun run typecheck
-bun run build
+task install
+task build
+task typecheck
 ```
 
-## Project Structure
+## Testing
 
-- `packages/core`: Core generator library (OpenAPI -> MCP server scaffold), published internally as `@workspace/core`
-- `packages/cli`: Command-line wrapper (`mcpgen`), published internally as `@workspace/cli`
-- `turbo.json`: Turborepo pipeline
-- `biome.json`: Biome v2 config
-- `tsconfig.json`: Base TSConfig with project references
+- Unit tests are colocated as `*.test.ts` near sources.
+- Test runner: Bun Test.
+- Run all tests: `bun run test`.
+- Examples:
+  - Core: YAML/JSON parsing, name suggestion, server generation
+  - CLI: arg parsing, interactive prompt flow (mocked), integration test spawning the bundled CLI
 
 ## Notes
 
-- Turborepo + Bun: use `bun run <script>` or `bunx turbo <cmd>`.
-- Biome CLI: installed as a devDependency; run via `bun run` scripts.
-- OpenAPI: JSON supported in scaffold; add YAML by adding a parser (e.g., `yaml`) to `@openapi-mcp-generator/core`.
-- MCP: generated server is a scaffold; wire real handlers, install the MCP SDK, and map OpenAPI operations to tools.
+- Generated servers are scaffolds exposing tools derived from OpenAPI operations; wire up real HTTP handlers as needed.
+- Security: basic API Key handling is included; extend as required for your APIs.
+- The CLI delegates to the core generator and favors Bun runtime for the MCP server.
 
-## References (Context7)
+## Contributing
 
-- Turborepo: create with `bunx create-turbo@latest`; run tasks with `turbo run <task>`.
-- Bun Workspaces: define `"workspaces": ["apps/*", "packages/*"]` and use `workspace:*` for intra-repo deps.
-- Biome v2: configure `biome.json`; run `biome format --write .` or `biome check --fix`.
-- TypeScript: use `composite` + project `references` for monorepos.
+- Keep changes small and focused.
+- Ensure `bun run typecheck`, `bun run lint`, and `bun run test` pass.
+- Follow repository coding style (Biome v2) and TypeScript strictness.

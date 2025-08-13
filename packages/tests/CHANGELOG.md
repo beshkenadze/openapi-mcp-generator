@@ -1,4 +1,4 @@
-# @workspace/tests
+# @aigentools/mcpgen-tests
 
 ## 0.0.2
 

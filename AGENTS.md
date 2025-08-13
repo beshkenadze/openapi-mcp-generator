@@ -6,7 +6,7 @@
   - `@aigentools/mcpgen-core`: generator library; OpenAPI via `@scalar/openapi-parser` (YAML fallback).
   - `@aigentools/mcpgen`: `mcpgen` CLI (bundled for Node/Bun).
   - `@workspace/mcp-openapi-server`: MCP stdio server using the Petstore spec.
-  - `@workspace/tsconfig`: shared TS config.
+  - `@aigentools/mcpgen-tsconfig`: shared TS config.
 - Tests: colocated as `*.test.ts` next to sources.
 - OpenAPI spec: `packages/mcp-openapi-server/openapi/petstore.yaml`.
 

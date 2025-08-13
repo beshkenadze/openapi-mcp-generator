@@ -47,7 +47,7 @@
       "version": "0.0.0",
     },
     "packages/tests": {
-      "name": "@workspace/tests",
+      "name": "@aigentools/mcpgen-tests",
       "version": "0.0.1",
       "dependencies": {
         "@aigentools/mcpgen": "workspace:*",
@@ -59,7 +59,7 @@
       },
     },
     "packages/tsconfig": {
-      "name": "@workspace/tsconfig",
+      "name": "@aigentools/mcpgen-tsconfig",
       "version": "0.0.0",
     },
   },
@@ -67,6 +67,10 @@
     "@aigentools/mcpgen": ["@aigentools/mcpgen@workspace:packages/cli"],
 
     "@aigentools/mcpgen-core": ["@aigentools/mcpgen-core@workspace:packages/core"],
+
+    "@aigentools/mcpgen-tests": ["@aigentools/mcpgen-tests@workspace:packages/tests"],
+
+    "@aigentools/mcpgen-tsconfig": ["@aigentools/mcpgen-tsconfig@workspace:packages/tsconfig"],
 
     "@babel/runtime": ["@babel/runtime@7.28.2", "", {}, "sha512-KHp2IflsnGywDjBWDkR9iEqiWSpc8GIi0lgTT3mOElT0PP1tG26P4tmFI2YvAdzgq9RGyoHZQEIEdZy6Ec5xCA=="],
 
@@ -259,10 +263,6 @@
     "@types/node": ["@types/node@20.19.10", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-iAFpG6DokED3roLSP0K+ybeDdIX6Bc0Vd3mLW5uDqThPWtNos3E+EqOM11mPQHKzfWHqEBuLjIlsBQQ8CsISmQ=="],
 
     "@types/react": ["@types/react@19.1.10", "", { "dependencies": { "csstype": "^3.0.2" } }, "sha512-EhBeSYX0Y6ye8pNebpKrwFJq7BoQ8J5SO6NlvNwwHjSj6adXJViPQrKlsyPw7hLBLvckEMO1yxeGdR82YBBlDg=="],
-
-    "@workspace/tests": ["@workspace/tests@workspace:packages/tests"],
-
-    "@workspace/tsconfig": ["@workspace/tsconfig@workspace:packages/tsconfig"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

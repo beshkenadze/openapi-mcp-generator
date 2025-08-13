@@ -17,3 +17,9 @@ packages/*/dist/
 **/*.tsbuildinfo
 
 test_data/*
+
+# Test artifacts and temporary files
+packages/tests/test-inspector/
+**/test-*.json
+**/test-*.yaml
+**/test-*.yml

@@ -6,3 +6,14 @@ dist
 packages/*/*.bun-build
 packages/cli/bin/*
 *.tsbuildinfo
+
+# Generated outputs
+output/
+output/cli-gen/
+
+# Package build outputs
+packages/*/dist/
+**/.turbo/
+**/*.tsbuildinfo
+
+test_data/*

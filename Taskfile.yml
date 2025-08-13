@@ -7,6 +7,9 @@ vars:
   # Generated server output
   GEN_OUT: servers/petstore-mcp
   GEN_NAME: petstore-mcp
+  # Inspector
+  INSPECTOR_BIN: node node_modules/@modelcontextprotocol/inspector/cli/build/cli.js
+  INSPECTOR_OUT: output/cli-gen
 
 tasks:
   install:
@@ -83,7 +86,7 @@ tasks:
         fi
         cd {{.GEN_OUT}}
         bun install
-        API_BASE_URL=http://127.0.0.1:{{.PRISM_PORT}} npx @modelcontextprotocol/inspector bun src/server.ts || true
+        API_BASE_URL=http://127.0.0.1:{{.PRISM_PORT}} {{.INSPECTOR_BIN}} bun src/server.ts || true
         if [ "$STARTED_PRISM" = "1" ]; then kill $PRISM_PID 2>/dev/null || true; fi
         '
 
@@ -105,8 +108,86 @@ tasks:
           sleep 1
         fi
         cd {{.GEN_OUT}}
-        API_BASE_URL=http://127.0.0.1:{{.PRISM_PORT}} npx @modelcontextprotocol/inspector --cli bun src/server.ts --method tools/list || true
+        API_BASE_URL=http://127.0.0.1:{{.PRISM_PORT}} {{.INSPECTOR_BIN}} --cli bun src/server.ts --method tools/list || true
         if [ "$STARTED_PRISM" = "1" ]; then kill $PRISM_PID 2>/dev/null || true; fi
+        '
+
+  gen:from-testdata:
+    desc: Generate MCP servers from all specs under test_data into output/cli-gen
+    cmds:
+      - |
+        bash -lc '
+        set -eo pipefail
+        ROOT_DIR="$(pwd)"
+        OUT_BASE="{{.INSPECTOR_OUT}}"
+        mkdir -p "$OUT_BASE"
+        while IFS= read -r -d "" SPEC; do
+          BASENAME="$(basename "$SPEC")"
+          NAME_NO_EXT="${BASENAME%.*}"
+          SLUG=$(printf "%s" "$NAME_NO_EXT" | tr "[:upper:]" "[:lower:]" | sed -E "s/[^a-z0-9]+/-/g; s/^-+//; s/-+$//")
+          SERVER_NAME="${SLUG}-mcp"
+          OUT_DIR="$OUT_BASE/$SLUG"
+          mkdir -p "$OUT_DIR"
+          echo "Generating for $BASENAME -> $OUT_DIR (name: $SERVER_NAME)"
+          bun run packages/cli/src/index.ts -- --input "$SPEC" --out "$OUT_DIR" --name "$SERVER_NAME" --runtime bun --force >"$OUT_DIR/gen.log" 2>&1 || true
+        done < <(find "$ROOT_DIR/test_data" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) -print0)
+        '
+
+  inspector:gen-config:
+    desc: Generate MCP Inspector config.json pointing to generated servers in output/cli-gen
+    cmds:
+      - |
+        bash -lc '
+        set -eo pipefail
+        OUT_BASE="{{.INSPECTOR_OUT}}"
+        CFG="$OUT_BASE/inspector.config.json"
+        echo "{ \"mcpServers\": {" > "$CFG.tmp"
+        FIRST=1
+        for IDX in "$OUT_BASE"/*; do
+          [ -d "$IDX/mcp-server" ] || continue
+          NAME=$(basename "$IDX")
+          SERVER_NAME="${NAME}-mcp"
+          INDEX_TS="$IDX/mcp-server/index.ts"
+          [ -f "$INDEX_TS" ] || continue
+          if [ $FIRST -eq 0 ]; then echo "," >> "$CFG.tmp"; fi
+          FIRST=0
+          printf "  \"%s\": {\"command\": \"bun\", \"args\": [\"--bun\", \"%s\"]}" "$SERVER_NAME" "$INDEX_TS" >> "$CFG.tmp"
+        done
+        echo "} }" >> "$CFG.tmp"
+        mv "$CFG.tmp" "$CFG"
+        echo "Wrote $CFG"
+        '
+
+  inspector:cli:list:
+    desc: List tools for each generated server via Inspector CLI
+    cmds:
+      - task: inspector:gen-config
+      - |
+        bash -lc '
+        set -eo pipefail
+        CFG="{{.INSPECTOR_OUT}}/inspector.config.json"
+        grep -E "^[[:space:]]*\"" "$CFG" | sed -E "s/^[[:space:]]*\"([^\"]+)\".*/\\1/" | grep -v '^mcpServers$' | while read -r NAME; do
+          echo "== $NAME tools =="
+          {{.INSPECTOR_BIN}} --cli --config "$CFG" --server "$NAME" --method tools/list || true
+          echo
+        done
+        '
+
+  inspector:ui:
+    desc: Open Inspector UI using generated config (choose server in UI)
+    cmds:
+      - task: inspector:gen-config
+      - |
+        bash -lc '
+        set -eo pipefail
+        CFG="{{.INSPECTOR_OUT}}/inspector.config.json"
+        if [ -n "${SERVER_NAME:-}" ]; then
+          echo "Launching Inspector UI with server: $SERVER_NAME (from $CFG)"
+          {{.INSPECTOR_BIN}} --config "$CFG" --server "$SERVER_NAME"
+        else
+          echo "Launching Inspector UI (no server preselected). To preselect: SERVER_NAME=<name> task inspector:ui"
+          {{.INSPECTOR_BIN}}
+        fi
         '
 
   # Split utility tasks for granular control and CI use

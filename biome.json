@@ -1,12 +1,9 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
   "files": {
-    "ignore": ["**/dist/**", "**/.turbo/**", "**/node_modules/**"]
+    "includes": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.json"]
   },
   "formatter": {
-    "enabled": true
-  },
-  "organizeImports": {
     "enabled": true
   },
   "linter": {
@@ -14,6 +11,17 @@
     "rules": {
       "recommended": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/dist/**", "**/.turbo/**", "**/node_modules/**"],
+      "linter": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      }
+    }
+  ]
 }
 

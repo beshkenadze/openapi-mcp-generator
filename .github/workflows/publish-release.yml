@@ -1,0 +1,174 @@
+name: Publish Release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  publish:
+    # Only run if:
+    # 1. PR was merged (not closed without merge)
+    # 2. PR came from a release branch
+    # 3. PR has the 'release' label
+    if: |
+      github.event.pull_request.merged == true && 
+      contains(github.event.pull_request.head.ref, 'release/') &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+      
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+          
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        
+      - name: Build packages
+        run: bun run build
+        
+      - name: Check if packages need publishing
+        id: check-publish
+        run: |
+          # Check if any packages have versions that don't exist on npm
+          if bun changeset status | grep -q "following packages are not published"; then
+            echo "needs-publish=true" >> $GITHUB_OUTPUT
+            echo "📦 Packages need to be published"
+          else
+            echo "needs-publish=false" >> $GITHUB_OUTPUT  
+            echo "ℹ️ No packages need publishing"
+          fi
+        
+      - name: Publish to npm
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "🚀 Publishing packages to npm..."
+          
+          # Configure npm authentication
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          
+          # Publish packages
+          bun changeset publish
+          
+          echo "✅ Packages published successfully!"
+          
+      - name: Push git tags
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🏷️ Pushing git tags..."
+          git push --follow-tags
+          
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          VERSION=${BRANCH_NAME#release/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📋 Extracted version: $VERSION"
+          
+      - name: Create GitHub Release
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: "Release ${{ steps.version.outputs.version }}"
+          body: |
+            ${{ github.event.pull_request.body }}
+            
+            ---
+            
+            ## 📦 Published Packages
+            
+            This release includes updates to the following packages:
+            
+            - `@workspace/core` - Core generator library
+            - `@workspace/cli` - Command-line interface
+            
+            ## 🔗 Useful Links
+            
+            - [📖 Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+            - [🚀 Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/README.md#quick-start)
+            - [📝 Changelog](https://github.com/${{ github.repository }}/blob/main/packages/core/CHANGELOG.md)
+            
+            ## 🛠️ Installation
+            
+            ```bash
+            # Install CLI globally
+            npm install -g @workspace/cli
+            
+            # Or use in your project
+            npm install @workspace/core
+            ```
+          draft: false
+          prerelease: false
+          
+      - name: Merge back to develop
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🔄 Merging release back to develop branch..."
+          
+          # Configure git for commits
+          git config user.name "release-bot[bot]"
+          git config user.email "release-bot[bot]@users.noreply.github.com"
+          
+          # Fetch latest develop
+          git fetch origin develop:develop
+          
+          # Checkout develop
+          git checkout develop
+          
+          # Merge main into develop
+          git merge origin/main --no-ff -m "chore: merge release ${{ steps.version.outputs.version }} back to develop [skip ci]"
+          
+          # Push develop
+          git push origin develop
+          
+          echo "✅ Successfully merged release back to develop"
+          
+      - name: Clean up release branch
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🧹 Cleaning up release branch..."
+          
+          # Delete remote release branch
+          git push origin --delete ${{ github.event.pull_request.head.ref }} || echo "Branch already deleted"
+          
+          echo "✅ Release branch cleaned up"
+          
+      - name: Publish summary
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🎉 Release ${{ steps.version.outputs.version }} completed successfully!"
+          echo ""
+          echo "✅ Packages published to npm"
+          echo "✅ Git tags created and pushed"  
+          echo "✅ GitHub release created"
+          echo "✅ Changes merged back to develop"
+          echo "✅ Release branch cleaned up"
+          echo ""
+          echo "🔗 View the release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
+          
+      - name: Skip publishing
+        if: steps.check-publish.outputs.needs-publish == 'false'
+        run: |
+          echo "ℹ️ Skipping publish step - no packages need publishing"
+          echo "This could happen if:"
+          echo "- Packages were already published"
+          echo "- Only private packages were updated"
+          echo "- This was a documentation-only release"

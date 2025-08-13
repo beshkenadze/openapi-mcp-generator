@@ -91,6 +91,15 @@ describe('CLI Integration Tests', () => {
     expect(result.stdout.toString()).toContain('mcpgen');
   });
 
+  test('should handle version subcommand correctly', async () => {
+    const result = await $`cd ${cliDir} && bun run dev version`.nothrow();
+
+    expect(result.exitCode).toBe(0);
+    const out = result.stdout.toString();
+    expect(out).toContain('mcpgen');
+    expect(out).toMatch(/Runtime:\s+(Bun|Node\.js)\s+/);
+  });
+
   test('should handle help flag correctly', async () => {
     const result = await $`cd ${cliDir} && bun run dev --help`.nothrow();
     

@@ -14,6 +14,16 @@ mcpgen --input ./petstore.json --out ./servers/petstore --name petstore-mcp --ru
 mcpgen --input ./petstore.json --out ./servers/petstore-web --name petstore-mcp --runtime hono
 ```
 
+### Subcommands
+- `version`: Show detailed version info (name + version, runtime, release date, commit)
+
+Examples:
+```sh
+mcpgen version
+# during local dev
+bun run -w packages/cli dev version
+```
+
 ### Flags
 - `--input, -i`: Path to the OpenAPI spec (`.yaml/.yml/.json`).
 - `--out, -o`: Output directory for the scaffold.

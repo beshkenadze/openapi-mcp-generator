@@ -8,13 +8,16 @@ if (!existsSync("./bin")) {
 }
 
 // Get build metadata
-const bunVersion = await $`bun --version`.text();
+const pkg = JSON.parse(await Bun.file("package.json").text());
+const pkgName = String(pkg.name ?? "@workspace/cli");
+const pkgVersion = String(pkg.version ?? "0.0.0");
 const buildTime = new Date().toISOString();
 const gitCommit =
-	await $`git rev-parse --short HEAD 2>/dev/null || echo "unknown"`.text();
+    await $`git rev-parse --short HEAD 2>/dev/null || echo "unknown"`.text();
 
 console.log("📦 Building cross-platform binaries...");
-console.log(`   Version: ${bunVersion.trim()}`);
+console.log(`   Name: ${pkgName}`);
+console.log(`   Version: ${pkgVersion}`);
 console.log(`   Time: ${buildTime}`);
 console.log(`   Commit: ${gitCommit.trim()}`);
 
@@ -28,8 +31,9 @@ const targets = [
 for (const { name, target, ext } of targets) {
 	console.log(`\n🔨 Building for ${name}...`);
 
-	await $`bun build --compile --target=${target} --minify --sourcemap \
-    --define BUILD_VERSION=${JSON.stringify(bunVersion.trim())} \
+    await $`bun build --compile --target=${target} --minify --sourcemap \
+    --define BUILD_NAME=${JSON.stringify(pkgName)} \
+    --define BUILD_VERSION=${JSON.stringify(pkgVersion)} \
     --define BUILD_TIME=${JSON.stringify(buildTime)} \
     --define BUILD_TARGET=${JSON.stringify(name)} \
     --define GIT_COMMIT=${JSON.stringify(gitCommit.trim())} \

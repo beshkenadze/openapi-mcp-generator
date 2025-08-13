@@ -92,3 +92,7 @@ The generator creates a single-file MCP server (`mcp-server/index.ts` or `src/se
 - Prism mock server for OpenAPI endpoint simulation
 - MCP Inspector for validating generated servers
 - Taskfile.yml contains smoke test workflows
+
+## Release Management
+
+For releasing packages and version management, see [docs/releasing.md](docs/releasing.md). The project uses Changesets for semver-compliant releases across the monorepo.

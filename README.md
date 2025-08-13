@@ -435,6 +435,10 @@ name: my-mcp
 
 This monorepo uses **Turborepo** for build orchestration and caching. All commands automatically handle package dependencies and run tasks in the correct order.
 
+### 📦 Releases and Versioning
+
+For information about releasing packages, version management, and publishing workflow, see **[docs/releasing.md](docs/releasing.md)**.
+
 ### Standard Development Commands
 
 ```bash

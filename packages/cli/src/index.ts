@@ -10,6 +10,13 @@ import {
 	slugify,
 } from "@workspace/core";
 
+// Optional build-time constants injected by bun build scripts
+declare const BUILD_NAME: string | undefined;
+declare const BUILD_VERSION: string | undefined;
+declare const BUILD_TIME: string | undefined;
+declare const GIT_COMMIT: string | undefined;
+declare const BUILD_TARGET: string | undefined;
+
 type Runtime = "bun" | "node" | "hono";
 
 type Args = {
@@ -82,15 +89,84 @@ function usage() {
 		}),
 	);
 
-	const msg = `${chalk.bold("Usage:")}
+    const msg = `${chalk.bold("Usage:")}
   ${chalk.green("mcpgen")} ${chalk.yellow("--input")} ${chalk.blue("<openapi.(json|yaml)>")} ${chalk.yellow("--out")} ${chalk.blue("<dir>")} [${chalk.yellow("--name")} ${chalk.blue("<server-name>")}] [${chalk.yellow("--runtime")} ${chalk.blue("bun|node|hono")}] [${chalk.yellow("--force")}]
   ${chalk.green("mcpgen")} ${chalk.yellow("--config")} ${chalk.blue("<config.yaml>")} [${chalk.yellow("--out")} ${chalk.blue("<dir>")}] [${chalk.yellow("--force")}]
+  ${chalk.green("mcpgen")} ${chalk.yellow("version")}
 
 ${chalk.bold("Examples:")}
   ${chalk.green("mcpgen")} ${chalk.yellow("--input")} ${chalk.blue("./petstore.yaml")} ${chalk.yellow("--out")} ${chalk.blue("./output")} ${chalk.yellow("--name")} ${chalk.blue("petstore-mcp")}
   ${chalk.green("mcpgen")} ${chalk.yellow("--config")} ${chalk.blue("./mcpgen.config.yaml")} ${chalk.yellow("--out")} ${chalk.blue("./output")}`;
 
 	console.log(msg);
+}
+
+async function printVersion(): Promise<void> {
+    try {
+        const _pkgName: string =
+            typeof BUILD_NAME !== "undefined" ? BUILD_NAME : (() => {
+                try {
+                    const url = new URL("../package.json", import.meta.url);
+                    const pkg = JSON.parse(readFileSync(url, "utf8"));
+                    return String(pkg.name ?? "mcpgen");
+                } catch {
+                    return "mcpgen";
+                }
+            })();
+
+        const pkgVersion: string =
+            typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : (() => {
+                try {
+                    const url = new URL("../package.json", import.meta.url);
+                    const pkg = JSON.parse(readFileSync(url, "utf8"));
+                    return String(pkg.version ?? "0.0.0");
+                } catch {
+                    return "0.0.0";
+                }
+            })();
+
+        type BunRuntime = { version: string };
+        const bunGlobal = (globalThis as unknown as { Bun?: BunRuntime }).Bun;
+        const isBun = typeof bunGlobal !== "undefined";
+        const bunVersion: string | null = isBun ? (bunGlobal?.version ?? null) : null;
+        const nodeVersion = process.versions?.node ? `v${process.versions.node}` : process.version;
+        const runtime = isBun ? `Bun ${bunVersion}` : `Node.js ${nodeVersion}`;
+
+        const buildTimeConst = typeof BUILD_TIME !== "undefined" ? BUILD_TIME : undefined;
+        const gitCommitConst = typeof GIT_COMMIT !== "undefined" ? GIT_COMMIT : undefined;
+
+        let releaseDate = buildTimeConst ?? "";
+        let commitSha = gitCommitConst ?? "";
+
+        if (!releaseDate || !commitSha) {
+            try {
+                const { execSync } = await import("node:child_process");
+                if (!releaseDate) {
+                    try {
+                        releaseDate = execSync("git show -s --format=%cI HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+                            .toString()
+                            .trim();
+                    } catch {}
+                }
+                if (!commitSha) {
+                    try {
+                        commitSha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+                            .toString()
+                            .trim();
+                    } catch {}
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        console.log(chalk.cyan(`mcpgen ${pkgVersion}`));
+        console.log(chalk.gray(`Runtime: ${runtime}`));
+        if (releaseDate) console.log(chalk.gray(`Release: ${releaseDate}`));
+        if (commitSha) console.log(chalk.gray(`Commit: ${commitSha}`));
+    } catch (_e) {
+        console.log(chalk.cyan("mcpgen"));
+    }
 }
 
 function isSpecPathValid(path?: string): boolean {
@@ -274,44 +350,23 @@ export async function collectInputs(args: Args): Promise<{
 }
 
 async function main() {
-	const argv = process.argv.slice(2);
-	const args = parseArgs(argv);
+    const argv = process.argv.slice(2);
+    // Subcommands
+    if (argv[0] === "version") {
+        await printVersion();
+        process.exit(0);
+    }
+    if (argv[0] === "help") {
+        usage();
+        process.exit(0);
+    }
 
-	if (args.version) {
-		try {
-			// Use build-time constants if available (in binary), otherwise read package.json
-			const version =
-				typeof BUILD_VERSION !== "undefined"
-					? BUILD_VERSION
-					: (() => {
-							const pkg = JSON.parse(
-								readFileSync(resolve(__dirname, "..", "package.json"), "utf8"),
-							);
-							return pkg.version ?? "0.0.0";
-						})();
+    const args = parseArgs(argv);
 
-			const buildTime =
-				typeof BUILD_TIME !== "undefined" ? BUILD_TIME : "unknown";
-			const buildTarget =
-				typeof BUILD_TARGET !== "undefined" ? BUILD_TARGET : "unknown";
-			const gitCommit =
-				typeof GIT_COMMIT !== "undefined" ? GIT_COMMIT : "unknown";
-
-			console.log(chalk.cyan(`mcpgen v${version}`));
-			if (buildTime !== "unknown") {
-				console.log(chalk.gray(`Built: ${buildTime}`));
-			}
-			if (buildTarget !== "unknown") {
-				console.log(chalk.gray(`Target: ${buildTarget}`));
-			}
-			if (gitCommit !== "unknown") {
-				console.log(chalk.gray(`Commit: ${gitCommit}`));
-			}
-		} catch {
-			console.log(chalk.cyan("mcpgen"));
-		}
-		process.exit(0);
-	}
+    if (args.version) {
+        await printVersion();
+        process.exit(0);
+    }
 
 	if (args.help) {
 		usage();

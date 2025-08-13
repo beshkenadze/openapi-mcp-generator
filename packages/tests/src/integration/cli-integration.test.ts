@@ -7,7 +7,7 @@ describe('CLI Integration Tests', () => {
   const testDir = resolve(process.cwd(), 'test-cli-integration');
   const testSpec = resolve(testDir, 'api-spec.json');
   const outputDir = resolve(testDir, 'output');
-  const cliDir = resolve(process.cwd(), '../cli');
+  const cliDir = resolve(__dirname, '../../../cli');
 
   beforeEach(async () => {
     // Clean up and create test directory
@@ -81,7 +81,7 @@ describe('CLI Integration Tests', () => {
     // Verify generated server has basic structure
     const serverContent = readFileSync(resolve(outputDir, 'mcp-server', 'index.ts'), 'utf8');
     expect(serverContent).toContain('McpServer');
-    expect(serverContent).toContain("name: 'integration-test-mcp'");
+    expect(serverContent).toContain('name: "integration-test-mcp"');
   }, 15000);
 
   test('should handle version flag correctly', async () => {
@@ -116,7 +116,7 @@ name: config-test-mcp
     expect(existsSync(resolve(outputDir, 'mcp-server', 'index.ts'))).toBe(true);
     
     const serverContent = readFileSync(resolve(outputDir, 'mcp-server', 'index.ts'), 'utf8');
-    expect(serverContent).toContain("name: 'config-test-mcp'");
+    expect(serverContent).toContain('name: "config-test-mcp"');
   });
 
   test('should handle force flag for overwriting', async () => {
@@ -132,7 +132,7 @@ name: config-test-mcp
 });
 
 describe('CLI Error Handling', () => {
-  const cliDir = resolve(process.cwd(), '../cli');
+  const cliDir = resolve(__dirname, '../../../cli');
 
   test('should fail gracefully with invalid input file', async () => {
     const result = await $`cd ${cliDir} && timeout 5 bun run dev --input non-existent.yaml --out ./output --name test`.nothrow();

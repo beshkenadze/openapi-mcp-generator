@@ -40,6 +40,7 @@ jobs:
         VALIDATE_JSON: true
         VALIDATE_YAML: true
         VALIDATE_MARKDOWN: true
+        FILTER_REGEX_EXCLUDE: '(release-notes\.md|CHANGELOG\.md|\.changeset/.*\.md)'
 
   dependency-check:
     name: Dependency Check

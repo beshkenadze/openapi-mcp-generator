@@ -5,3 +5,4 @@ dist
 *.log
 packages/*/*.bun-build
 packages/cli/bin/*
+*.tsbuildinfo

@@ -4,17 +4,21 @@ CLI for generating an MCP server scaffold from an OpenAPI document.
 
 ## Usage
 ```sh
-mcpgen --input <openapi.(json|yaml)> --out <dir> [--name <server-name>] [--runtime bun|node] [--force]
+mcpgen --input <openapi.(json|yaml)> --out <dir> [--name <server-name>] [--runtime bun|node|hono] [--force]
 
-# examples
-mcpgen --input ./petstore.json --out ./servers/petstore --name petstore-mcp
+# Standard runtime examples (stdio transport)
+mcpgen --input ./petstore.json --out ./servers/petstore --name petstore-mcp --runtime bun
+mcpgen --input ./petstore.json --out ./servers/petstore --name petstore-mcp --runtime node
+
+# Hono runtime example (HTTP + SSE + WebSocket transports)
+mcpgen --input ./petstore.json --out ./servers/petstore-web --name petstore-mcp --runtime hono
 ```
 
 ### Flags
 - `--input, -i`: Path to the OpenAPI spec (`.yaml/.yml/.json`).
 - `--out, -o`: Output directory for the scaffold.
 - `--name, -n`: Server name; when omitted, clack suggests one.
-- `--runtime, -r`: `bun` (default) or `node`.
+- `--runtime, -r`: Runtime: `bun` (default), `node`, or `hono` (web server with HTTP/SSE/WebSocket).
 - `--force, -f`: Skip confirmation when output directory is not empty.
 - `--config, -c`: YAML config file with `openapi` and optional `name`.
 - `--help, -h`: Show usage.
@@ -25,6 +29,7 @@ If any required flags are missing, `mcpgen` enters an interactive flow:
 - Validates `--input` exists and has the correct extension.
 - Suggests `--name` using `info.title` from the OpenAPI spec when available, falling back to the input filename (slugified) with `-mcp` appended.
 - Suggests `--out` as `./servers/<name>`.
+- Prompts for `--runtime` selection: Bun (recommended), Node.js, or Hono Web Server (HTTP + SSE + Stdio).
 - Confirms overwriting an existing non-empty output directory (unless `--force`).
 
 ### Configuration file
@@ -32,6 +37,7 @@ Minimal supported YAML file when using `--config`:
 ```yaml
 openapi: ./path/to/spec.yaml
 name: my-mcp
+runtime: hono  # optional: bun (default), node, or hono
 # out can still be passed via --out; defaults to "output" if omitted
 ```
 

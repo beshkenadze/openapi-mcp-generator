@@ -6,6 +6,7 @@ Advanced generator library for creating MCP servers from OpenAPI specifications 
 - **AST-based Code Generation**: Uses `ts-morph` for precise TypeScript code generation
 - **OpenAPI Parsing**: Built on `@scalar/openapi-parser` with validation and dereferencing
 - **Type-Safe**: Full TypeScript support with Zod schema validation
+- **Multiple Runtimes**: Support for Bun/Node (stdio) and Hono (HTTP/SSE/WebSocket) runtimes
 - **CamelCase Naming**: Converts OpenAPI operations to camelCase method names
 - **Biome Formatting**: Automatic code formatting with Biome v2 integration
 - **Comprehensive Mapping**: Maps OpenAPI paths, parameters, request bodies, and responses to MCP tools
@@ -18,15 +19,28 @@ The main generator class that converts OpenAPI specifications to MCP servers.
 ```ts
 import { OpenAPIMcpGenerator, type GeneratorOptions } from '@workspace/core';
 
-// With default options
+// Standard runtime (Bun/Node with stdio transport)
 const generator = new OpenAPIMcpGenerator();
 await generator.generateFromOpenAPI(
   './petstore.yaml',    // OpenAPI file path (JSON or YAML)
   './server.ts',        // Output file path
-  'petstore-mcp'        // Server name
+  'petstore-mcp',       // Server name
+  'bun'                 // Runtime: 'bun', 'node', or 'hono'
 );
 
-// With custom options
+// Hono runtime (Web server with HTTP/SSE/WebSocket transports)
+const honoGenerator = new OpenAPIMcpGenerator({
+  debug: true,           // Enable debug logging
+  skipFormatting: false  // Enable Biome formatting
+});
+await honoGenerator.generateFromOpenAPI(
+  './petstore.yaml',
+  './output/src/server.ts',
+  'petstore-web-mcp',
+  'hono'                 // Generates Hono web server with multiple transports
+);
+
+// Custom options
 const customGenerator = new OpenAPIMcpGenerator({
   debug: true,           // Enable debug logging
   indentSize: 2,         // Use 2-space indentation
@@ -49,6 +63,7 @@ import type {
   
   // Generator configuration
   GeneratorOptions,
+  Runtime,               // 'bun' | 'node' | 'hono'
   
   // Additional types
   OpenAPIRequestBody,
@@ -73,6 +88,8 @@ Configure the generator behavior with `GeneratorOptions`:
 ## Generated Server Features
 
 The generated MCP server includes:
+
+### Common Features (All Runtimes)
 - **Individual MCP Tools**: Each OpenAPI operation becomes an MCP tool
 - **Zod Validation**: Input parameters validated with Zod schemas
 - **Type Safety**: Full TypeScript support with proper interfaces
@@ -82,8 +99,23 @@ The generated MCP server includes:
 - **Error Handling**: Comprehensive HTTP error handling
 - **Environment Variables**: Configurable base URL via `API_BASE_URL`
 
+### Standard Runtime (Bun/Node) Features
+- **Stdio Transport**: Direct stdin/stdout communication
+- **Single File Output**: Complete server in one `index.ts` file
+- **Claude Desktop Ready**: Works immediately with Claude Desktop configuration
+
+### Hono Runtime Features
+- **HTTP Transport**: RESTful MCP endpoint at `/mcp`
+- **SSE Transport**: Server-Sent Events at `/mcp/sse` for streaming
+- **WebSocket Stdio**: Experimental stdio transport via WebSocket at `/mcp/stdio`
+- **Web Server**: Full Hono application with middleware
+- **Health Checks**: Built-in `/health` endpoint for monitoring
+- **Docker Support**: Includes Dockerfile for containerized deployment
+- **Development Mode**: Hot reload with `bun run dev`
+
 ## Example Output
 
+### Standard Runtime (Bun/Node)
 Given a simple OpenAPI spec, the generator creates:
 
 ```ts
@@ -108,6 +140,50 @@ server.registerTool(
     // HTTP request implementation with error handling
   }
 );
+
+// Stdio transport setup
+const transport = new StdioServerTransport();
+server.connect(transport);
+```
+
+### Hono Runtime
+For Hono runtime, the generator creates a complete web server:
+
+```ts
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPTransport } from '@hono/mcp';
+import { Hono } from 'hono';
+import { stream } from 'hono/streaming';
+
+const mcpServer = new McpServer({
+  name: 'petstore-mcp',
+  version: '1.0.0'
+});
+
+// Tool registration (same as standard runtime)
+mcpServer.registerTool('getPetById', { /* ... */ }, async (params) => {
+  // HTTP request implementation
+});
+
+const app = new Hono();
+
+// HTTP transport endpoint
+app.post('/mcp', async (c) => {
+  const transport = new StreamableHTTPTransport();
+  await mcpServer.connect(transport);
+  return transport.handleRequest(c);
+});
+
+// SSE transport endpoint  
+app.get('/mcp/sse', async (c) => {
+  const transport = new StreamableHTTPTransport();
+  await mcpServer.connect(transport);
+  return stream(c, async (stream) => {
+    // Server-Sent Events implementation
+  });
+});
+
+export default app;
 ```
 
 ## Development

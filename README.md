@@ -20,10 +20,25 @@ Transform your OpenAPI specifications into powerful Model Context Protocol (MCP)
 - `biome.json`: Biome config
 - `tsconfig.json`: Root TS config
 
-## Install
+## Installation
 
-```sh
+```bash
+# Clone and setup
+git clone <repository-url>
+cd openapi-mcp-generator
 bun install
+bun run build
+```
+
+### Alternative: Using Task (Optional)
+If you have [Task](https://taskfile.dev/) installed, you can use the provided shortcuts:
+
+```bash
+task install    # Same as: bun install
+task build      # Same as: bun run build  
+task typecheck  # Same as: bun run typecheck
+task test       # Same as: bun run test
+task lint       # Same as: bun run lint
 ```
 
 ## Quick Start
@@ -34,19 +49,16 @@ Choose your preferred method to generate MCP servers from OpenAPI specifications
 
 #### Interactive Mode (Easiest)
 ```bash
-# Clone and setup
-git clone <repository-url>
-cd openapi-mcp-generator
-bun install
-bun run build
-
-# Run in interactive mode - prompts guide you through the process
+# After installation, run in interactive mode
 cd packages/cli
 bun run dev
 
-# The CLI will ask you for:
+# Or using Task shortcut:
+task gen:interactive
+
+# The CLI will prompt you for:
 # - Path to your OpenAPI spec file
-# - Server name (auto-suggested from spec)
+# - Server name (auto-suggested from spec)  
 # - Output directory
 # - Runtime preference (Bun/Node)
 ```
@@ -56,6 +68,11 @@ bun run dev
 # Generate from a local OpenAPI spec
 cd packages/cli
 bun run dev --input ./examples/petstore.yaml --out ./servers/petstore --name petstore-mcp --runtime bun --force
+
+# Using Taskfile shortcuts for Petstore example:
+task gen:petstore           # Generate Petstore MCP server
+task install:petstore       # Install dependencies in generated server
+task prism:inspect:cli      # Generate + test with Prism mock server + MCP Inspector
 
 # Generate from URL
 bun run dev --input https://petstore.swagger.io/v2/swagger.json --out ./servers/petstore --name petstore-mcp
@@ -105,8 +122,9 @@ console.log(`Operations: ${result.operations.length}`);
 
 ### 📁 Generated Server Structure
 
-Both methods create the same output structure:
+The structure depends on the chosen runtime:
 
+#### Standard Runtime (Bun/Node)
 ```
 my-server/
 ├── mcp-server/
@@ -116,8 +134,20 @@ my-server/
 └── README.md             # Usage instructions
 ```
 
+#### Hono Runtime (Web Server)
+```
+my-server/
+├── src/
+│   └── server.ts          # Hono web server with multiple transports
+├── package.json           # Dependencies and scripts
+├── Dockerfile            # Docker deployment support
+├── biome.json           # Code formatting configuration
+└── README.md            # Usage and transport endpoint documentation
+```
+
 ### ▶️ Running Your Generated MCP Server
 
+#### Standard Runtime (Bun/Node)
 ```bash
 # Navigate to generated server
 cd ./servers/petstore
@@ -133,8 +163,32 @@ bun --bun mcp-server/index.ts
 # The server runs via stdio and is ready for MCP clients!
 ```
 
+#### Hono Runtime (Web Server with Multiple Transports)
+```bash
+# Navigate to generated server
+cd ./servers/petstore
+
+# Install dependencies
+bun install
+
+# Development server with hot reload
+bun run dev
+
+# Production server
+bun run build && bun run start
+
+# The server provides multiple transport options:
+# 🌐 HTTP transport: http://localhost:3000/mcp
+# 📡 SSE transport: http://localhost:3000/mcp/sse  
+# 🔗 Stdio transport: ws://localhost:3000/mcp/stdio
+# 🏥 Health check: http://localhost:3000/health
+```
+
 ### 🔌 Connecting to Claude Desktop
 
+The connection method depends on the runtime used:
+
+#### Standard Runtime (Stdio Transport)
 Add to your Claude Desktop MCP configuration (`claude_desktop_config.json`):
 
 ```json
@@ -151,15 +205,57 @@ Add to your Claude Desktop MCP configuration (`claude_desktop_config.json`):
 }
 ```
 
+#### Hono Runtime (HTTP Transport)
+First, start your Hono server, then configure Claude Desktop to use HTTP transport:
+
+```json
+{
+  "mcpServers": {
+    "petstore": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:3000/mcp"
+      },
+      "env": {
+        "API_BASE_URL": "https://petstore.swagger.io/v2"
+      }
+    }
+  }
+}
+```
+
+#### Alternative: SSE Transport (Hono)
+For streaming capabilities, use Server-Sent Events transport:
+
+```json
+{
+  "mcpServers": {
+    "petstore": {
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:3000/mcp/sse"
+      },
+      "env": {
+        "API_BASE_URL": "https://petstore.swagger.io/v2"
+      }
+    }
+  }
+}
+```
+
 ## 📚 Complete Examples
 
-### Example 1: Petstore API (Basic)
+### Example 1: Petstore API (Standard Runtime)
 
 ```bash
-# Using the CLI interactively
+# Method 1: Using Taskfile (easiest for Petstore)
+task gen:petstore           # Generates the Petstore MCP server
+task install:petstore       # Installs dependencies
+task prism:inspect:cli      # Tests with Prism mock server + MCP Inspector
+
+# Method 2: Using CLI interactively  
 cd packages/cli
 bun run dev
-
 # When prompted:
 # Input file: https://petstore.swagger.io/v2/swagger.json  
 # Server name: petstore-api (auto-suggested)
@@ -169,11 +265,64 @@ bun run dev
 
 This creates an MCP server with tools like:
 - `getPetById` - Find pet by ID
-- `addPet` - Add a new pet to the store
+- `addPet` - Add a new pet to the store  
 - `updatePet` - Update an existing pet
 - `deletePet` - Deletes a pet
 
-### Example 2: GitHub API (Advanced)
+**Testing the generated server:**
+```bash
+# Start Prism mock server (in one terminal)
+task prism:mock
+
+# Test your server with MCP Inspector (in another terminal)
+cd servers/petstore-mcp  
+API_BASE_URL=http://127.0.0.1:4010 bun --bun mcp-server/index.ts
+```
+
+### Example 2: Petstore API with Hono Runtime (Web Server)
+
+```bash
+# Generate Hono-based MCP server with multiple transports
+cd packages/cli
+bun run dev --input https://petstore.swagger.io/v2/swagger.json --out ./servers/petstore-hono --name petstore-hono --runtime hono
+
+# Navigate and install dependencies
+cd ./servers/petstore-hono
+bun install
+
+# Start development server with hot reload
+bun run dev
+```
+
+The Hono server provides multiple connection endpoints:
+
+**HTTP Transport (POST requests):**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+**SSE Transport (Server-Sent Events):**
+```bash
+curl -N http://localhost:3000/mcp/sse
+# Returns streaming MCP responses
+```
+
+**Health Checks:**
+```bash
+curl http://localhost:3000/health
+# {"status":"ok","server":"petstore-hono"}
+```
+
+**Docker Deployment:**
+```bash
+# Build and run with Docker
+docker build -t petstore-hono .
+docker run -p 3000:3000 -e API_BASE_URL=https://petstore.swagger.io/v2 petstore-hono
+```
+
+### Example 3: GitHub API (Advanced)
 
 ```bash
 # Download GitHub API spec
@@ -191,7 +340,7 @@ cp .env.example .env
 # GITHUB_TOKEN=your_token_here
 ```
 
-### Example 3: Custom API (Programmatic)
+### Example 4: Custom API (Programmatic)
 
 ```typescript
 // generate-mcp.ts
@@ -204,7 +353,7 @@ async function generateMyAPI() {
       "./generated-servers/my-api",
       "my-company-api",
       {
-        runtime: "bun",
+        runtime: "hono",         // Generate Hono web server with multiple transports
         force: true,
         debug: true
       }
@@ -228,7 +377,7 @@ async function generateMyAPI() {
 generateMyAPI();
 ```
 
-### Example 4: Real-world Integration
+### Example 5: Real-world Integration
 
 ```bash
 # Step 1: Generate server
@@ -263,7 +412,7 @@ Non-interactive flags:
 - `--input, -i` OpenAPI spec path (`.yaml/.yml/.json`)
 - `--output, --out, -o` Output directory
 - `--name, -n` Server name (defaults to spec title or filename)
-- `--runtime, -r` `bun` (default) or `node`
+- `--runtime, -r` Runtime: `bun` (default), `node`, or `hono` (HTTP + SSE + Stdio transports)
 - `--force, -f` Overwrite when output directory is not empty
 - `--config, -c` YAML config file (see below)
 - `--help, -h` Show usage
@@ -284,31 +433,75 @@ name: my-mcp
 
 ## Development
 
-Common scripts:
-```sh
-# build everything
+This monorepo uses **Turborepo** for build orchestration and caching. All commands automatically handle package dependencies and run tasks in the correct order.
+
+### Standard Development Commands
+
+```bash
+# Build all packages (with dependency management via Turborepo)
 bun run build
 
-# typecheck all packages
-bun run typecheck
+# Type check all packages
+bun run typecheck  
 
-# lint and format (Biome)
+# Lint and format all packages (Biome v2)
 bun run lint
 bun run format
 
-# run tests across packages
+# Run tests across all packages
 bun run test
 
-# build or test a specific package via Turbo filters
-bun run --filter @workspace/cli build
-bun run --filter @workspace/core test
+# Target specific packages using Turborepo filters
+bunx turbo run build --filter=@workspace/core     # Build core package only
+bunx turbo run test --filter=@workspace/cli       # Test CLI package only
+bunx turbo run typecheck --filter=@workspace/*    # Type check all workspace packages
 ```
 
-Optional Taskfile shortcuts (if `go-task` is installed):
-```sh
-task install
-task build
-task typecheck
+### Taskfile Shortcuts
+
+If you have [Task](https://taskfile.dev/) installed, use these convenient shortcuts:
+
+```bash
+# Basic development commands
+task install          # Install all dependencies
+task build            # Build all packages
+task typecheck        # Type check all packages
+task test             # Run all tests
+
+# Package-specific builds (via Turborepo)
+task build:core       # Build core package only
+task build:cli        # Build CLI package only
+task typecheck:core   # Type check core only
+task typecheck:cli    # Type check CLI only
+
+# Example workflows with Petstore
+task gen:petstore           # Generate Petstore MCP server
+task install:petstore       # Install dependencies in generated server
+task test:gen:petstore      # Generate and verify files exist
+
+# Testing with Prism mock server + MCP Inspector
+task prism:mock            # Start Prism mock server
+task prism:inspect:cli     # Full workflow: generate → test with Inspector CLI
+task prism:inspect:ui      # Full workflow: generate → test with Inspector UI
+task prism:smoke          # Complete smoke test chain
+```
+
+### Turborepo Benefits
+
+- **Smart caching**: Build outputs are cached and reused across runs
+- **Parallel execution**: Tasks run in parallel when possible
+- **Dependency awareness**: Automatically builds dependencies first
+- **Incremental builds**: Only rebuilds what changed
+
+```bash
+# See what Turborepo will run
+bunx turbo run build --dry-run
+
+# Run with verbose logging
+bunx turbo run test --verbose
+
+# Clear Turborepo cache
+bunx turbo prune
 ```
 
 ## Testing
@@ -332,6 +525,43 @@ Your generated MCP servers include:
 - **⚠️ Error Handling**: Comprehensive HTTP error handling with meaningful responses
 - **🌐 Environment Configuration**: Configurable base URL via `API_BASE_URL` environment variable
 - **🔐 Authentication**: Built-in API key support via headers
+
+## 🌐 Transport Options (Runtime Comparison)
+
+Choose the right runtime for your needs:
+
+### Standard Runtime (Bun/Node) - **Recommended for Claude Desktop**
+- ✅ **Stdio Transport**: Direct process communication via stdin/stdout
+- ✅ **Single File**: One `index.ts` file with complete MCP server
+- ✅ **Zero Setup**: Works immediately with Claude Desktop
+- ✅ **Lightweight**: Minimal dependencies
+- ❌ **Limited to Claude**: Cannot be accessed via HTTP/web
+
+### Hono Runtime - **Recommended for Web Integration**
+- ✅ **HTTP Transport**: RESTful API endpoint at `/mcp`
+- ✅ **SSE Transport**: Server-Sent Events at `/mcp/sse` for streaming
+- ✅ **Stdio Transport**: WebSocket simulation at `/mcp/stdio` (experimental)
+- ✅ **Web Compatible**: Access from browsers, web apps, and HTTP clients
+- ✅ **Docker Ready**: Includes Dockerfile for easy deployment  
+- ✅ **Health Checks**: Built-in `/health` endpoint for monitoring
+- ✅ **Hot Reload**: Development server with watch mode
+- ❌ **More Complex**: Requires running web server
+- ❌ **Network Dependent**: Requires network connectivity
+
+#### When to Use Each Runtime:
+
+**Choose Standard (Bun/Node) when:**
+- Using Claude Desktop exclusively
+- Want simplest setup and deployment
+- Need minimal resource usage
+- Working with sensitive data (no network exposure)
+
+**Choose Hono when:**
+- Building web applications with MCP integration
+- Need multiple client access (browser + Claude)
+- Want to expose MCP tools as HTTP API
+- Deploying to cloud/container environments
+- Need monitoring and health checks
 
 ## 🔍 Troubleshooting
 

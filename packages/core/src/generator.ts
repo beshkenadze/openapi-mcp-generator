@@ -1,6 +1,7 @@
 import { IndentationText, Project, QuoteKind } from "ts-morph";
 import { validate, dereference } from "@scalar/openapi-parser";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import { execSync } from "node:child_process";
 import {
@@ -9,6 +10,15 @@ import {
 	renderServerHeader,
 	renderServerInit,
 } from "./templates/index.js";
+import {
+	HONO_MCP_SERVER_TEMPLATE,
+	HONO_PACKAGE_JSON_TEMPLATE,
+	HONO_TOOL_TEMPLATE,
+	HONO_HELPERS_TEMPLATE,
+	HONO_DOCKERFILE_TEMPLATE,
+	HONO_README_TEMPLATE,
+	HONO_BIOME_CONFIG,
+} from "./templates/hono-server.js";
 import type {
 	OpenAPISchema,
 	OpenAPIParameter,
@@ -35,6 +45,7 @@ class OpenAPIMcpGenerator {
 			indentSize: 4,
 			quoteStyle: "single",
 			trailingCommas: true,
+			runtime: "bun",
 			...options,
 		};
 
@@ -64,6 +75,7 @@ class OpenAPIMcpGenerator {
 		openApiFilePath: string,
 		outputPath: string,
 		serverName: string,
+		runtime: "bun" | "node" | "hono" = "bun",
 	): Promise<void> {
 		if (this.options.debug) {
 			console.log(`🔧 Generating MCP server from ${openApiFilePath}...`);
@@ -99,23 +111,36 @@ class OpenAPIMcpGenerator {
 			console.log("✅ OpenAPI document parsed and validated");
 		}
 
-		// Create source file
-		this.sourceFile = this.project.createSourceFile(outputPath, "", {
-			overwrite: true,
-		});
+		// Generate server based on runtime
+		if (runtime === "hono") {
+			await this.generateHonoServer(
+				openApiFilePath,
+				outputPath,
+				serverName,
+				schema,
+			);
+		} else {
+			// Create source file for traditional MCP servers (bun/node)
+			this.sourceFile = this.project.createSourceFile(outputPath, "", {
+				overwrite: true,
+			});
 
-		// Generate the MCP server
-		this.generateImports();
-		this.generateServerSetup(
-			serverName,
-			schema.info?.title,
-			schema.info?.version,
-		);
-		this.generateTools(schema.paths || {}, schema.components?.schemas || {});
-		this.generateTransportSetup();
+			// Generate the MCP server
+			this.generateImports();
+			this.generateServerSetup(
+				serverName,
+				schema.info?.title,
+				schema.info?.version,
+			);
+			this.generateTools(
+				schema.paths || {},
+				schema.components?.schemas || {},
+			);
+			this.generateTransportSetup();
 
-		// Save the file
-		await this.sourceFile.save();
+			// Save the file
+			await this.sourceFile.save();
+		}
 
 		// Format with Biome (if not skipped)
 		if (!this.options.skipFormatting) {
@@ -246,8 +271,15 @@ class OpenAPIMcpGenerator {
 		// Generate from path and method
 		const pathParts = pathPattern
 			.split("/")
-			.filter((part) => part && !part.startsWith("{"))
-			.map((part) => part.replace(/[^a-zA-Z0-9]/g, ""))
+			.filter((part) => part && part.length > 0)
+			.map((part) => {
+				// Handle path parameters: {id} -> Id, {userId} -> UserId
+				if (part.startsWith("{") && part.endsWith("}")) {
+					const paramName = part.slice(1, -1);
+					return paramName.charAt(0).toUpperCase() + paramName.slice(1);
+				}
+				return part.replace(/[^a-zA-Z0-9]/g, "");
+			})
 			.filter((part) => part.length > 0);
 
 		const parts = [
@@ -465,6 +497,126 @@ class OpenAPIMcpGenerator {
 
 	private generateTransportSetup(): void {
 		this.sourceFile.addStatements(renderHelpers());
+	}
+
+	private async generateHonoServer(
+		openApiFilePath: string,
+		outputPath: string,
+		serverName: string,
+		schema: OpenAPIDocument,
+	): Promise<void> {
+		// For Hono, outputPath could be either a directory or a file path
+		// If it ends with .ts, it's a file path - extract the base directory properly
+		// The expected pattern is: /path/to/project/src/server.ts -> /path/to/project
+		let baseDir: string;
+		if (outputPath.endsWith('.ts')) {
+			// Extract project base directory from file path
+			// If path ends with src/server.ts, go up two levels
+			const dir = dirname(outputPath);
+			baseDir = dir.endsWith('src') ? dirname(dir) : dir;
+		} else {
+			baseDir = outputPath;
+		}
+		const srcDir = join(baseDir, "src");
+
+		if (this.options.debug) {
+			console.log(`📁 Creating Hono server directory: ${baseDir}`);
+		}
+
+		mkdirSync(baseDir, { recursive: true });
+		mkdirSync(srcDir, { recursive: true });
+
+		// Generate tools from OpenAPI paths
+		const tools: string[] = [];
+		const toolsList: string[] = [];
+
+		for (const [pathPattern, pathItem] of Object.entries(schema.paths || {})) {
+			for (const [method, operation] of Object.entries(pathItem)) {
+				if (
+					["get", "post", "put", "patch", "delete", "head", "options"].includes(
+						method,
+					)
+				) {
+					const tool = this.generateHonoTool(
+						pathPattern,
+						method,
+						operation as OpenAPIOperation,
+					);
+					tools.push(tool);
+
+					const toolName = this.generateToolName(
+						pathPattern,
+						method,
+						operation.operationId,
+					);
+					const description =
+						operation.summary ||
+						operation.description ||
+						`${method.toUpperCase()} ${pathPattern}`;
+					toolsList.push(`- **${toolName}**: ${description}`);
+				}
+			}
+		}
+
+		// Generate server file
+		const serverContent = HONO_MCP_SERVER_TEMPLATE
+			.replace(/\{\{COMMENT\}\}/g, schema.info?.title || "")
+			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
+			.replace(/\{\{TOOLS\}\}/g, tools.join("\n\n"))
+			.replace(/\{\{HELPERS\}\}/g, HONO_HELPERS_TEMPLATE);
+
+		// Generate package.json
+		const packageContent = HONO_PACKAGE_JSON_TEMPLATE
+			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
+			.replace(/\{\{DESCRIPTION\}\}/g, schema.info?.description || `MCP server for ${schema.info?.title || serverName}`);
+
+		// Generate README.md
+		const readmeContent = HONO_README_TEMPLATE
+			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
+			.replace(/\{\{DESCRIPTION\}\}/g, schema.info?.description || `MCP server for ${schema.info?.title || serverName}`)
+			.replace(/\{\{TOOLS_LIST\}\}/g, toolsList.join("\n"));
+
+		// Write files
+		writeFileSync(join(srcDir, "server.ts"), serverContent);
+		writeFileSync(join(baseDir, "package.json"), packageContent);
+		writeFileSync(join(baseDir, "README.md"), readmeContent);
+		writeFileSync(join(baseDir, "Dockerfile"), HONO_DOCKERFILE_TEMPLATE);
+		writeFileSync(join(baseDir, "biome.json"), HONO_BIOME_CONFIG);
+
+		if (this.options.debug) {
+			console.log(`✅ Hono server files generated in ${baseDir}`);
+		}
+	}
+
+	private generateHonoTool(
+		pathPattern: string,
+		method: string,
+		operation: OpenAPIOperation,
+	): string {
+		const toolName = this.generateToolName(
+			pathPattern,
+			method,
+			operation.operationId,
+		);
+		const inputSchema = this.generateInputSchema(operation, pathPattern);
+		const description =
+			operation.summary ||
+			operation.description ||
+			`${method.toUpperCase()} ${pathPattern}`;
+
+		let requestBody = "";
+		if (["post", "put", "patch"].includes(method.toLowerCase())) {
+			requestBody = '\n\t\t\tbody: buildRequestBody(params),';
+		}
+
+		return HONO_TOOL_TEMPLATE
+			.replace(/\{\{TOOL_NAME\}\}/g, toolName)
+			.replace(/\{\{TITLE\}\}/g, this.escapeString(description))
+			.replace(/\{\{DESCRIPTION\}\}/g, this.escapeString(operation.description || description))
+			.replace(/\{\{INPUT_SCHEMA\}\}/g, inputSchema)
+			.replace(/\{\{PATH\}\}/g, pathPattern)
+			.replace(/\{\{METHOD\}\}/g, method.toUpperCase())
+			.replace(/\{\{REQUEST_BODY\}\}/g, requestBody);
 	}
 
 	private escapeString(str: string): string {

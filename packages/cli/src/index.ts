@@ -10,7 +10,7 @@ import {
 	slugify,
 } from "@workspace/core";
 
-type Runtime = "bun" | "node";
+type Runtime = "bun" | "node" | "hono";
 
 type Args = {
 	input?: string;
@@ -45,7 +45,7 @@ export function parseArgs(argv: string[]): Args {
 			case "--runtime":
 			case "-r": {
 				const v = next();
-				if (v === "bun" || v === "node") args.runtime = v;
+				if (v === "bun" || v === "node" || v === "hono") args.runtime = v;
 				else args.runtime = "bun";
 				break;
 			}
@@ -83,7 +83,7 @@ function usage() {
 	);
 
 	const msg = `${chalk.bold("Usage:")}
-  ${chalk.green("mcpgen")} ${chalk.yellow("--input")} ${chalk.blue("<openapi.(json|yaml)>")} ${chalk.yellow("--out")} ${chalk.blue("<dir>")} [${chalk.yellow("--name")} ${chalk.blue("<server-name>")}] [${chalk.yellow("--runtime")} ${chalk.blue("bun|node")}] [${chalk.yellow("--force")}]
+  ${chalk.green("mcpgen")} ${chalk.yellow("--input")} ${chalk.blue("<openapi.(json|yaml)>")} ${chalk.yellow("--out")} ${chalk.blue("<dir>")} [${chalk.yellow("--name")} ${chalk.blue("<server-name>")}] [${chalk.yellow("--runtime")} ${chalk.blue("bun|node|hono")}] [${chalk.yellow("--force")}]
   ${chalk.green("mcpgen")} ${chalk.yellow("--config")} ${chalk.blue("<config.yaml>")} [${chalk.yellow("--out")} ${chalk.blue("<dir>")}] [${chalk.yellow("--force")}]
 
 ${chalk.bold("Examples:")}
@@ -175,6 +175,7 @@ export async function collectInputs(
 				options: [
 					{ value: "bun", label: "Bun (recommended)" },
 					{ value: "node", label: "Node.js" },
+					{ value: "hono", label: "Hono Web Server (HTTP + SSE + Stdio)" },
 				],
 				initialValue: "bun",
 			});
@@ -340,7 +341,7 @@ async function main() {
 
 		spinner.message("Generating MCP server code...");
 		const outputPath = resolve(process.cwd(), out, "mcp-server", "index.ts");
-		await generator.generateFromOpenAPI(input, outputPath, name);
+		await generator.generateFromOpenAPI(input, outputPath, name, runtime);
 
 		spinner.stop("✅ Generation complete!");
 

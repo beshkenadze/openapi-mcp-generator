@@ -38,7 +38,7 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: bun changeset publish
+          publish: bunx turbo run publish --filter='@aigentools/mcpgen-core' --filter='@aigentools/mcpgen'
           version: bun changeset version
           commit: 'chore: version packages'
           title: '🚀 Version Packages'

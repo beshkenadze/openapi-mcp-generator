@@ -102,9 +102,7 @@ function isSpecPathValid(path?: string): boolean {
 	);
 }
 
-export async function collectInputs(
-	args: Args,
-): Promise<{
+export async function collectInputs(args: Args): Promise<{
 	input: string;
 	out: string;
 	name: string;
@@ -117,7 +115,14 @@ export async function collectInputs(
 			const { resolve } = await import("node:path");
 			const YAML = await import("yaml");
 			const raw = readFileSync(resolve(process.cwd(), args.config), "utf8");
-			const cfg = YAML.parse(raw) as any;
+			type Config = Partial<{
+				openapi: string;
+				spec: string;
+				input: string;
+				name: string;
+				serverName: string;
+			}>;
+			const cfg = YAML.parse(raw) as unknown as Config;
 			const input = String(cfg?.openapi ?? cfg?.spec ?? cfg?.input ?? "");
 			const name = String(cfg?.name ?? cfg?.serverName ?? "mcp-server");
 			const out = args.out ?? "output";
@@ -142,15 +147,17 @@ export async function collectInputs(
 	const missing = !args.input || !args.out || !args.runtime || !args.name;
 	if (!missing) {
 		return {
-			input: args.input!,
-			out: args.out!,
-			name: args.name!,
+			input: args.input as string,
+			out: args.out as string,
+			name: args.name as string,
 			runtime: args.runtime ?? "bun",
 			force: Boolean(args.force),
 		};
 	}
 
-	const prompts: Record<string, any> = {};
+	type GroupContext = { results: Record<string, unknown> };
+	type GroupPrompt = (ctx?: GroupContext) => Promise<unknown> | undefined;
+	const prompts: Record<string, GroupPrompt> = {};
 
 	if (!args.input) {
 		prompts.input = () =>
@@ -182,10 +189,12 @@ export async function collectInputs(
 	}
 
 	if (!args.name) {
-		prompts.name = async ({ results }: any) => {
+		prompts.name = async (
+			{ results }: GroupContext = { results: {} as Record<string, unknown> },
+		) => {
 			const inputPath = args.input ?? results.input ?? "";
 			const suggested = inputPath
-				? await suggestNameFromSpec(inputPath)
+				? await suggestNameFromSpec(String(inputPath))
 				: "mcp-server";
 			return p.text({
 				message: "Server name",
@@ -199,7 +208,9 @@ export async function collectInputs(
 	}
 
 	if (!args.out) {
-		prompts.out = ({ results }: any) => {
+		prompts.out = (
+			{ results }: GroupContext = { results: {} as Record<string, unknown> },
+		) => {
 			const name = args.name ?? results.name ?? "mcp-server";
 			const suggested = `./servers/${slugify(String(name))}`;
 			return p.text({
@@ -214,11 +225,14 @@ export async function collectInputs(
 		};
 	}
 
-	const answers = await p.group(prompts, {
-		onCancel: () => {
-			p.cancel("Operation cancelled.");
+	const answers = (await p.group(
+		prompts as unknown as Parameters<typeof p.group>[0],
+		{
+			onCancel: () => {
+				p.cancel("Operation cancelled.");
+			},
 		},
-	});
+	)) as Record<string, unknown>;
 
 	if (p.isCancel(answers)) return null;
 

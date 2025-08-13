@@ -18,17 +18,15 @@
     "release": "changeset publish"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
     "@biomejs/biome": "^2.0.0",
-    "typescript": "^5.5.0",
     "@changesets/cli": "^2.27.1",
+    "@modelcontextprotocol/inspector": "^0.16.2",
+    "@modelcontextprotocol/sdk": "^1.17.2",
     "@types/node": "^20.12.7",
     "bun-types": "^1.2.19",
-    "@modelcontextprotocol/inspector": "^0.16.2"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.2",
     "ts-morph": "^26.0.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
     "zod": "^4.0.17"
   }
 }

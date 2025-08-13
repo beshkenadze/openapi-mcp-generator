@@ -1,8 +1,7 @@
-import { IndentationText, Project, QuoteKind } from "ts-morph";
+import { IndentationText, Project, QuoteKind, type SourceFile } from "ts-morph";
 import { validate, dereference } from "@scalar/openapi-parser";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { z } from "zod";
 import { execSync } from "node:child_process";
 import {
 	renderHelpers,
@@ -21,20 +20,29 @@ import {
 } from "./templates/hono-server.js";
 import type {
 	OpenAPISchema,
-	OpenAPIParameter,
-	OpenAPIRequestBody,
-	OpenAPIResponse,
 	OpenAPIOperation,
 	OpenAPIPath,
-	OpenAPIInfo,
-	OpenAPIComponents,
 	OpenAPIDocument,
 	GeneratorOptions,
 } from "./types.js";
 
+type JsonSchema = {
+	// Basic JSON Schema fields we emit
+	type: string;
+	enum?: string[];
+	format?: string;
+	minimum?: number;
+	maximum?: number;
+	items?: JsonSchema;
+	properties?: Record<string, JsonSchema>;
+	required?: string[];
+	description?: string;
+	additionalProperties?: boolean;
+};
+
 class OpenAPIMcpGenerator {
 	private project: Project;
-	private sourceFile: any;
+	private sourceFile!: SourceFile;
 	private options: Required<GeneratorOptions>;
 
 	constructor(options: GeneratorOptions = {}) {
@@ -102,24 +110,26 @@ class OpenAPIMcpGenerator {
 			);
 		}
 
-		const { schema } = await dereference(openApiContent);
-		if (!schema) {
-			throw new Error("Failed to dereference OpenAPI schema");
-		}
+			const { schema } = await dereference(openApiContent);
+			if (!schema) {
+				throw new Error("Failed to dereference OpenAPI schema");
+			}
+
+			const schemaDoc = schema as unknown as OpenAPIDocument;
 
 		if (this.options.debug) {
 			console.log("✅ OpenAPI document parsed and validated");
 		}
 
 		// Generate server based on runtime
-		if (runtime === "hono") {
-			await this.generateHonoServer(
-				openApiFilePath,
-				outputPath,
-				serverName,
-				schema,
-			);
-		} else {
+			if (runtime === "hono") {
+				await this.generateHonoServer(
+					openApiFilePath,
+					outputPath,
+					serverName,
+					schemaDoc,
+				);
+			} else {
 			// Create source file for traditional MCP servers (bun/node)
 			this.sourceFile = this.project.createSourceFile(outputPath, "", {
 				overwrite: true,
@@ -127,15 +137,14 @@ class OpenAPIMcpGenerator {
 
 			// Generate the MCP server
 			this.generateImports();
-			this.generateServerSetup(
-				serverName,
-				schema.info?.title,
-				schema.info?.version,
-			);
-			this.generateTools(
-				schema.paths || {},
-				schema.components?.schemas || {},
-			);
+				this.generateServerSetup(
+					serverName,
+					schemaDoc.info?.title,
+					schemaDoc.info?.version,
+				);
+				const paths = (schemaDoc.paths ?? {}) as unknown as Record<string, OpenAPIPath>;
+				const schemas = (schemaDoc.components?.schemas ?? {}) as unknown as Record<string, OpenAPISchema>;
+				this.generateTools(paths, schemas);
 			this.generateTransportSetup();
 
 			// Save the file
@@ -230,7 +239,7 @@ class OpenAPIMcpGenerator {
 		pathPattern: string,
 		method: string,
 		operation: OpenAPIOperation,
-		schemas: Record<string, OpenAPISchema>,
+		_schemas: Record<string, OpenAPISchema>,
 	): void {
 		const toolName = this.generateToolName(
 			pathPattern,
@@ -320,7 +329,7 @@ class OpenAPIMcpGenerator {
 		operation: OpenAPIOperation,
 		pathPattern: string,
 	): string {
-		const properties: Record<string, any> = {};
+		const properties: Record<string, JsonSchema> = {};
 		const required: string[] = [];
 
 		// Add path parameters
@@ -330,7 +339,7 @@ class OpenAPIMcpGenerator {
 				const paramName = param.slice(1, -1);
 				const propName = this.toValidIdentifier(paramName);
 				properties[propName] = {
-					type: 'string',
+					type: "string",
 					description: `Path parameter: ${paramName}`,
 				};
 				required.push(propName);
@@ -346,12 +355,12 @@ class OpenAPIMcpGenerator {
 						param.description ||
 						param.schema?.description ||
 						`${param.in} parameter: ${param.name}`;
-					
+
 					properties[propName] = {
 						...this.openApiSchemaToJsonSchema(param.schema),
 						description: this.escapeString(description),
 					};
-					
+
 					if (param.required) {
 						required.push(propName);
 					}
@@ -360,21 +369,19 @@ class OpenAPIMcpGenerator {
 		}
 
 		// Add request body for non-GET methods
-		if (operation.requestBody && operation.requestBody.content) {
-			const jsonContent = operation.requestBody.content["application/json"];
-			if (jsonContent?.schema) {
-				properties.body = {
-					...this.openApiSchemaToJsonSchema(jsonContent.schema),
-					description: 'Request body',
-				};
-				if (operation.requestBody.required) {
-					required.push('body');
-				}
+		const jsonContent = operation.requestBody?.content?.["application/json"];
+		if (jsonContent?.schema) {
+			properties.body = {
+				...this.openApiSchemaToJsonSchema(jsonContent.schema),
+				description: "Request body",
+			};
+			if (operation.requestBody?.required) {
+				required.push("body");
 			}
 		}
 
-		const schema: any = {
-			type: 'object',
+		const schema: JsonSchema = {
+			type: "object",
 			properties,
 			additionalProperties: false,
 		};
@@ -386,12 +393,12 @@ class OpenAPIMcpGenerator {
 		return JSON.stringify(schema);
 	}
 
-	private openApiSchemaToJsonSchema(schema?: OpenAPISchema): any {
-		if (!schema) return { type: 'string' };
+	private openApiSchemaToJsonSchema(schema?: OpenAPISchema): JsonSchema {
+		if (!schema) return { type: "string" };
 
 		switch (schema.type) {
 			case "string": {
-				const jsonSchema: any = { type: 'string' };
+				const jsonSchema: JsonSchema = { type: "string" };
 				if (schema.enum) {
 					jsonSchema.enum = schema.enum;
 				}
@@ -403,28 +410,30 @@ class OpenAPIMcpGenerator {
 
 			case "number":
 			case "integer": {
-				const jsonSchema: any = { type: schema.type };
+				const jsonSchema: JsonSchema = { type: schema.type } as JsonSchema;
 				if (schema.minimum !== undefined) jsonSchema.minimum = schema.minimum;
 				if (schema.maximum !== undefined) jsonSchema.maximum = schema.maximum;
 				return jsonSchema;
 			}
 
 			case "boolean":
-				return { type: 'boolean' };
+				return { type: "boolean" };
 
 			case "array": {
 				return {
-					type: 'array',
+					type: "array",
 					items: this.openApiSchemaToJsonSchema(schema.items),
 				};
 			}
 
 			case "object": {
-				const jsonSchema: any = { type: 'object' };
+				const jsonSchema: JsonSchema = { type: "object" };
 				if (schema.properties) {
 					jsonSchema.properties = {};
 					for (const [key, prop] of Object.entries(schema.properties)) {
-						jsonSchema.properties[key] = this.openApiSchemaToJsonSchema(prop as OpenAPISchema);
+						jsonSchema.properties[key] = this.openApiSchemaToJsonSchema(
+							prop as OpenAPISchema,
+						);
 					}
 					if (schema.required) {
 						jsonSchema.required = schema.required;
@@ -434,7 +443,7 @@ class OpenAPIMcpGenerator {
 			}
 
 			default:
-				return { type: 'string' };
+				return { type: "string" };
 		}
 	}
 
@@ -501,7 +510,7 @@ class OpenAPIMcpGenerator {
 	}
 
 	private async generateHonoServer(
-		openApiFilePath: string,
+		_openApiFilePath: string,
 		outputPath: string,
 		serverName: string,
 		schema: OpenAPIDocument,
@@ -510,11 +519,11 @@ class OpenAPIMcpGenerator {
 		// If it ends with .ts, it's a file path - extract the base directory properly
 		// The expected pattern is: /path/to/project/src/server.ts -> /path/to/project
 		let baseDir: string;
-		if (outputPath.endsWith('.ts')) {
+		if (outputPath.endsWith(".ts")) {
 			// Extract project base directory from file path
 			// If path ends with src/server.ts, go up two levels
 			const dir = dirname(outputPath);
-			baseDir = dir.endsWith('src') ? dirname(dir) : dir;
+			baseDir = dir.endsWith("src") ? dirname(dir) : dir;
 		} else {
 			baseDir = outputPath;
 		}
@@ -560,21 +569,34 @@ class OpenAPIMcpGenerator {
 		}
 
 		// Generate server file
-		const serverContent = HONO_MCP_SERVER_TEMPLATE
-			.replace(/\{\{COMMENT\}\}/g, schema.info?.title || "")
+		const serverContent = HONO_MCP_SERVER_TEMPLATE.replace(
+			/\{\{COMMENT\}\}/g,
+			schema.info?.title || "",
+		)
 			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
 			.replace(/\{\{TOOLS\}\}/g, tools.join("\n\n"))
 			.replace(/\{\{HELPERS\}\}/g, HONO_HELPERS_TEMPLATE);
 
 		// Generate package.json
-		const packageContent = HONO_PACKAGE_JSON_TEMPLATE
-			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
-			.replace(/\{\{DESCRIPTION\}\}/g, schema.info?.description || `MCP server for ${schema.info?.title || serverName}`);
+		const packageContent = HONO_PACKAGE_JSON_TEMPLATE.replace(
+			/\{\{SERVER_NAME\}\}/g,
+			serverName,
+		).replace(
+			/\{\{DESCRIPTION\}\}/g,
+			schema.info?.description ||
+				`MCP server for ${schema.info?.title || serverName}`,
+		);
 
 		// Generate README.md
-		const readmeContent = HONO_README_TEMPLATE
-			.replace(/\{\{SERVER_NAME\}\}/g, serverName)
-			.replace(/\{\{DESCRIPTION\}\}/g, schema.info?.description || `MCP server for ${schema.info?.title || serverName}`)
+		const readmeContent = HONO_README_TEMPLATE.replace(
+			/\{\{SERVER_NAME\}\}/g,
+			serverName,
+		)
+			.replace(
+				/\{\{DESCRIPTION\}\}/g,
+				schema.info?.description ||
+					`MCP server for ${schema.info?.title || serverName}`,
+			)
 			.replace(/\{\{TOOLS_LIST\}\}/g, toolsList.join("\n"));
 
 		// Write files
@@ -607,13 +629,15 @@ class OpenAPIMcpGenerator {
 
 		let requestBody = "";
 		if (["post", "put", "patch"].includes(method.toLowerCase())) {
-			requestBody = '\n\t\t\tbody: buildRequestBody(params),';
+			requestBody = "\n\t\t\tbody: buildRequestBody(params),";
 		}
 
-		return HONO_TOOL_TEMPLATE
-			.replace(/\{\{TOOL_NAME\}\}/g, toolName)
+		return HONO_TOOL_TEMPLATE.replace(/\{\{TOOL_NAME\}\}/g, toolName)
 			.replace(/\{\{TITLE\}\}/g, this.escapeString(description))
-			.replace(/\{\{DESCRIPTION\}\}/g, this.escapeString(operation.description || description))
+			.replace(
+				/\{\{DESCRIPTION\}\}/g,
+				this.escapeString(operation.description || description),
+			)
 			.replace(/\{\{INPUT_SCHEMA\}\}/g, inputSchema)
 			.replace(/\{\{PATH\}\}/g, pathPattern)
 			.replace(/\{\{METHOD\}\}/g, method.toUpperCase())

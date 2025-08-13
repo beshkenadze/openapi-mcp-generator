@@ -1,13 +1,13 @@
 {
   "name": "@workspace/tests",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "Integration tests for the OpenAPI MCP Generator",
   "scripts": {
     "test": "bun test",
     "test:integration": "bun test src/integration/*.test.ts",
-    "test:inspector": "bun test src/inspector/*.test.ts", 
+    "test:inspector": "bun test src/inspector/*.test.ts",
     "test:e2e": "bun test src/e2e/*.test.ts",
     "test:all": "bun run test:integration && bun run test:inspector && bun run test:e2e"
   },

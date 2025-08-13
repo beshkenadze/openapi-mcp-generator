@@ -1,6 +1,6 @@
 # Releasing and Version Management
 
-This document outlines the release process for the OpenAPI MCP Generator monorepo using Changesets.
+This document outlines the **fully automated** release process for the OpenAPI MCP Generator monorepo using Changesets and GitHub Actions.
 
 ## Overview
 
@@ -8,7 +8,9 @@ The project uses [Changesets](https://github.com/changesets/changesets) to manag
 - `@aigentools/mcpgen-core` - Core generator library
 - `@aigentools/mcpgen` - Command-line interface
 
-## Release Workflow
+**🚀 Fully Automated Workflow**: All releases are handled automatically by GitHub Actions. No local release commands are required.
+
+## Automated Release Workflow
 
 ### 1. Making Changes
 
@@ -47,128 +49,158 @@ Add support for Hono runtime with multiple transport protocols
 - Updated CLI to support --runtime hono flag
 ```
 
-### 2. Preparing a Release
+### 2. Automated Release Process
 
-When ready to release, update package versions and changelogs:
+Once changesets are merged to the `main` branch, GitHub Actions automatically handles the entire release process:
 
-```bash
-# Update versions based on changesets
-bun run version:packages
-
-# This runs: changeset version
+#### Automatic Version Management
+```yaml
+# .github/workflows/changesets.yml
+name: Changesets
+on:
+  push:
+    branches: [main]
 ```
 
-This command:
-- Calculates new version numbers based on changesets
-- Updates `package.json` files
-- Generates/updates `CHANGELOG.md` files
-- Removes consumed changeset files
+The workflow automatically:
+1. **Detects changesets** in the main branch
+2. **Creates a Release PR** with version updates and changelogs
+3. **Waits for PR approval** (manual review step)
+4. **When PR is merged**, automatically:
+   - Publishes packages to npm
+   - Creates GitHub releases with changelogs
+   - Builds and uploads cross-platform CLI binaries
+   - Creates git tags
 
-### 3. Publishing Packages
-
-```bash
-# Publish to npm and create git tags
-bun run release
-
-# This runs: changeset publish
-```
-
-This command:
-- Publishes updated packages to npm
-- Creates git tags for each release
-- Only publishes packages with version changes
-
-## Complete Release Example
+#### Complete Automated Release Example
 
 ```bash
-# 1. Make your changes and add changeset
+# 1. Create feature branch and add changeset
 git checkout -b feature/new-runtime
 # ... make changes ...
 bun changeset
 git add .
 git commit -m "feat: add new runtime support"
+git push origin feature/new-runtime
 
-# 2. When ready to release (usually on main branch)
-git checkout main
-git pull origin main
+# 2. Create PR to main
+gh pr create --base main --title "feat: add new runtime support"
 
-# 3. Version packages
-bun run version:packages
-git add .
-git commit -m "chore: version packages"
+# 3. After PR is merged to main, GitHub Actions automatically:
+#    - Creates a "Version Packages" PR
+#    - When that PR is merged, publishes to npm and creates releases
 
-# 4. Publish packages
-bun run release
-
-# 5. Push changes and tags
-git push origin main --follow-tags
+# 4. No local release commands needed! 🎉
 ```
 
-## Pre-release Workflow
+### 3. What Happens Automatically
 
-For beta/alpha releases or testing:
+When you push changesets to the `main` branch:
+
+#### Step 1: Release PR Creation
+```yaml
+# GitHub Actions detects changesets and:
+- name: Create Release Pull Request or Publish to npm
+  uses: changesets/action@v1
+  with:
+    version: bun changeset version
+    title: '🚀 Version Packages'
+```
+
+- Automatically calculates new version numbers
+- Updates `package.json` files
+- Generates/updates `CHANGELOG.md` files  
+- Creates a PR with all version changes
+
+#### Step 2: Publishing (when Release PR is merged)
+```yaml
+# When Release PR is merged, GitHub Actions:
+- name: Build Cross-Platform Binaries
+- name: Upload Binaries to GitHub Release
+```
+
+- Publishes packages to npm
+- Creates GitHub releases with changelogs
+- Builds CLI binaries for Linux, macOS, and Windows
+- Uploads binaries to GitHub releases
+- Creates git tags automatically
+
+#### Step 3: Installation Options
+After automated release, users can install via:
+
+```bash
+# Install via npm
+bunx @aigentools/mcpgen
+
+# Or download platform-specific binaries
+wget https://github.com/beshkenadze/openapi-mcp-generator/releases/latest/download/mcpgen-linux-x64
+wget https://github.com/beshkenadze/openapi-mcp-generator/releases/latest/download/mcpgen-macos-x64
+wget https://github.com/beshkenadze/openapi-mcp-generator/releases/latest/download/mcpgen-windows-x64.exe
+```
+
+## Pre-release Workflow (Manual Override)
+
+For beta/alpha releases, you can temporarily override automation:
 
 ### Enter Pre-release Mode
 ```bash
 # Enter prerelease with tag (e.g., 'beta', 'alpha', 'next')
 bun changeset pre enter beta
-```
-
-### Version and Publish Pre-release
-```bash
-# Version packages with prerelease tag
-bun changeset version
 git add .
-git commit -m "chore: enter prerelease mode and version packages"
-
-# Publish with prerelease tag
-bun changeset publish
-git push --follow-tags
+git commit -m "chore: enter prerelease mode"
+git push origin main
+# This will trigger automated pre-release publishing
 ```
 
 ### Exit Pre-release Mode
 ```bash
 # Exit prerelease for stable release
 bun changeset pre exit
-bun changeset version
 git add .
-git commit -m "chore: exit prerelease mode and version packages"
-bun changeset publish
-git push --follow-tags
+git commit -m "chore: exit prerelease mode"
+git push origin main
+# This will trigger normal automated release flow
 ```
 
-## Snapshot Releases
+## Monitoring Automated Releases
 
-For testing specific commits without affecting version numbers:
-
+### Check Release Status
 ```bash
-# Create snapshot versions (0.0.0-TIMESTAMP format)
-bun changeset version --snapshot
-
-# Publish with custom tag to avoid affecting 'latest'
-bun changeset publish --tag snapshot
-```
-
-## Checking Release Status
-
-```bash
-# Check current changeset status
+# Check if changesets are waiting to be released
 bun changeset status
 
-# Verbose output with version information
+# View what changes are pending
 bun changeset status --verbose
 
-# Check status since specific branch/tag
-bun changeset status --since=main
+# Check GitHub Actions workflow status
+gh run list --workflow=changesets.yml
+
+# View latest workflow run details
+gh run view
 ```
 
-## Configuration
+### Monitor Release Progress
+```bash
+# View current releases
+gh release list
 
+# Check if Release PR exists
+gh pr list --label="🚀 Version Packages"
+
+# View release workflow logs
+gh run view --log
+```
+
+## Automated Release Configuration
+
+### Changesets Configuration
 The project is configured via `.changeset/config.json`:
 
 ```json
 {
-  "changelog": "@changesets/cli/changelog",
+  "changelog": ["@changesets/changelog-github", { 
+    "repo": "beshkenadze/openapi-mcp-generator" 
+  }],
   "commit": false,
   "fixed": [],
   "linked": [],
@@ -179,404 +211,82 @@ The project is configured via `.changeset/config.json`:
 }
 ```
 
-### Key Configuration Options
-
-- **access**: Set to "public" for public npm packages
-- **baseBranch**: Main development branch (usually "main" or "master")
-- **updateInternalDependencies**: How to bump internal dependencies ("patch", "minor", "major")
-- **linked**: Groups packages to release together with same version
-- **fixed**: Groups packages to maintain identical versions
-
-## Git Flow with Release Branches
-
-The project can use Git Flow with release branches for better control and testing before production releases. This approach separates feature development from release preparation.
-
-### Git Flow Branch Strategy
-
-```
-main (production)     ──●────●────●────●──
-                        │    │    │    │
-release/v1.2.0         ─●────●────●────╱
-                       ╱     │    │
-develop (integration) ●──●───●────●────●──
-                         ╱    ╱    ╱
-feature/new-runtime     ●────╱    ╱
-feature/fix-bug               ●──╱
-```
-
-### Automated Git Flow Workflow
-
-#### 1. Feature Development (develop → release/vX.Y.Z)
-```bash
-# Work on develop branch
-git checkout develop
-git pull origin develop
-
-# Create feature branch
-git checkout -b feature/add-hono-support
-# ... make changes ...
-bun changeset  # Add changeset for changes
-git add .
-git commit -m "feat: add Hono runtime support"
-git push origin feature/add-hono-support
-
-# Create PR to develop
-# After PR approved and merged to develop...
-```
-
-#### 2. Release Branch Creation (automated)
-```bash
-# When ready for release, create release branch from develop
-git checkout develop
-git pull origin develop
-git checkout -b release/v1.2.0
-git push origin release/v1.2.0
-```
-
-#### 3. Release Branch Processing (automated via GitHub Actions)
-The release branch triggers versioning and testing:
+### GitHub Actions Configuration
+The automation is powered by `.github/workflows/changesets.yml`:
 
 ```yaml
-name: Release Branch
+name: Changesets
 on:
   push:
-    branches:
-      - 'release/**'
-
-jobs:
-  version-packages:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Version packages
-        run: |
-          bun changeset version
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "chore: version packages for release" || exit 0
-          git push origin ${{ github.ref_name }}
-
-      - name: Run full test suite
-        run: |
-          bun run build
-          bun run typecheck
-          bun run lint
-          bun run test
-
-      - name: Create Release PR
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-          branch: ${{ github.ref_name }}
-          base: main
-          title: "Release ${{ github.ref_name }}"
-          body: |
-            🚀 **Release ${{ github.ref_name }}**
-
-            This PR merges the release branch to main and will trigger publishing.
-
-            ## Changes
-            - Automated version updates
-            - Updated changelogs
-            - All tests passing ✅
-
-            **After merging this PR:**
-            - Packages will be published to npm
-            - Git tags will be created
-            - GitHub release will be generated
-```
-
-#### 4. Production Release (main branch)
-```yaml
-name: Publish Release
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    types: [closed]
-
-jobs:
-  publish:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.head.ref, 'release/')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Publish packages
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          bun changeset publish
-          git push --follow-tags
-
-      - name: Merge back to develop
-        run: |
-          git checkout develop
-          git pull origin develop
-          git merge main --no-ff -m "chore: merge release back to develop"
-          git push origin develop
-```
-
-### Complete Git Flow Automation Setup
-
-Create these workflow files in `.github/workflows/`:
-
-#### `.github/workflows/release-branch.yml`
-```yaml
-name: Release Branch Workflow
-on:
-  push:
-    branches:
-      - 'release/**'
-  workflow_dispatch:
-    inputs:
-      release_branch:
-        description: 'Release branch name (e.g., release/v1.2.0)'
-        required: true
-
-jobs:
-  prepare-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Check for changesets
-        id: changeset-status
-        run: |
-          if bun changeset status --since=main; then
-            echo "has-changesets=true" >> $GITHUB_OUTPUT
-            echo "Found changesets to process"
-          else
-            echo "has-changesets=false" >> $GITHUB_OUTPUT
-            echo "No changesets found"
-          fi
-
-      - name: Version packages
-        if: steps.changeset-status.outputs.has-changesets == 'true'
-        run: |
-          bun changeset version
-          git config user.name "release-bot"
-          git config user.email "release-bot@users.noreply.github.com"
-          git add .
-          git commit -m "chore: version packages for ${{ github.ref_name }}" || exit 0
-          git push origin ${{ github.ref_name }}
-
-      - name: Run quality checks
-        run: |
-          bun run build
-          bun run typecheck
-          bun run lint
-          bun run test
-
-      - name: Create changelog summary
-        run: |
-          echo "## Release Summary" > release-notes.md
-          echo "" >> release-notes.md
-          find . -name "CHANGELOG.md" -path "*/packages/*" | while read changelog; do
-            package_name=$(dirname $changelog | xargs basename)
-            echo "### $package_name" >> release-notes.md
-            echo "" >> release-notes.md
-            # Get latest version changes (first section after ## header)
-            awk '/^## / && ++count == 2 {exit} /^## / && count == 1 {next} count == 1' "$changelog" >> release-notes.md
-            echo "" >> release-notes.md
-          done
-
-      - name: Create Release PR to Main
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-          branch: ${{ github.ref_name }}
-          base: main
-          title: "🚀 Release ${{ github.ref_name }}"
-          body-path: release-notes.md
-          labels: |
-            release
-            auto-merge
-```
-
-#### `.github/workflows/publish-release.yml`
-```yaml
-name: Publish Release
-on:
-  pull_request:
     branches: [main]
-    types: [closed]
 
 jobs:
-  publish:
-    if: |
-      github.event.pull_request.merged == true &&
-      contains(github.event.pull_request.head.ref, 'release/') &&
-      contains(github.event.pull_request.labels.*.name, 'release')
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: changesets/action@v1
         with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Publish to npm
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          bun changeset publish
-
-      - name: Push tags
-        run: git push --follow-tags
-
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
+          publish: bun changeset publish
+          version: bun changeset version
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        with:
-          tag_name: ${{ github.event.pull_request.head.ref }}
-          release_name: Release ${{ github.event.pull_request.head.ref }}
-          body: ${{ github.event.pull_request.body }}
-          draft: false
-          prerelease: false
-
-      - name: Merge back to develop
-        run: |
-          git fetch origin develop
-          git checkout develop
-          git merge main --no-ff -m "chore: merge ${{ github.event.pull_request.head.ref }} back to develop"
-          git push origin develop
-```
-
-### Manual Git Flow Commands
-
-For manual control, you can use these commands:
-
-```bash
-# Create release branch from develop
-git checkout develop
-git pull origin develop
-git checkout -b release/v1.2.0
-
-# Version packages and commit
-bun changeset version
-git add .
-git commit -m "chore: version packages for v1.2.0"
-git push origin release/v1.2.0
-
-# Create PR to main (manual review)
-gh pr create --base main --title "Release v1.2.0" --body "Release branch ready for production"
-
-# After PR merge, main will auto-publish and merge back to develop
-```
-
-### Configuration Updates
-
-Update `.changeset/config.json` for Git Flow:
-
-```json
-{
-  "changelog": ["@changesets/changelog-github", { "repo": "your-org/openapi-mcp-generator" }],
-  "commit": false,
-  "fixed": [],
-  "linked": [],
-  "access": "public",
-  "baseBranch": "develop",
-  "updateInternalDependencies": "patch",
-  "ignore": []
-}
-```
-
-### Hotfix Workflow
-
-For critical production fixes:
-
-```yaml
-name: Hotfix Workflow
-on:
-  push:
-    branches:
-      - 'hotfix/**'
-
-jobs:
-  hotfix:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Create emergency changeset
-        run: |
-          bun changeset --empty
-          # Manually edit changeset for patch version
-
-      - name: Version and publish
-        env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          bun changeset version
-          git add .
-          git commit -m "hotfix: emergency patch"
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          bun changeset publish
-          git push --follow-tags
-
-      - name: Create PRs to main and develop
-        run: |
-          gh pr create --base main --title "Hotfix: ${{ github.ref_name }}"
-          gh pr create --base develop --title "Hotfix: ${{ github.ref_name }}"
+      
+      # Automatic binary building and upload
+      - name: Build Cross-Platform Binaries
+      - name: Upload Binaries to GitHub Release
 ```
 
-This Git Flow approach provides:
-- **Controlled releases** through release branches
-- **Automated versioning** when release branch is created
-- **Quality gates** with tests before production
-- **Automatic publishing** when release PR is merged
-- **Branch synchronization** (main → develop merges)
-- **Emergency hotfix support**
+### Required Secrets
+For automation to work, these GitHub secrets must be configured:
+
+- `PAT_TOKEN` - Personal Access Token for creating PRs and releases
+- `NPM_TOKEN` - Token for publishing to npm registry
+
+### Key Configuration Options
+
+- **changelog**: Uses GitHub changelog with PR links
+- **access**: Set to "public" for npm publishing  
+- **baseBranch**: Main development branch ("main")
+- **createGithubReleases**: Automatically creates GitHub releases
+
+## Triggering a Release
+
+To trigger an automated release:
+
+### Option 1: Merge Existing Release PR
+```bash
+# Check if a Release PR already exists
+gh pr list --label="🚀 Version Packages"
+
+# If found, merge the Release PR
+gh pr merge <pr-number> --squash
+```
+
+### Option 2: Force Trigger Release (if no pending changesets)
+```bash
+# Create an empty changeset to trigger release workflow
+bun changeset --empty
+
+# Or create a documentation changeset
+bun changeset
+# Select packages, choose "patch", write "docs: update release documentation"
+
+# Commit and push to main
+git add .
+git commit -m "docs: update release documentation" 
+git push origin main
+```
+
+The GitHub Actions workflow will automatically:
+1. Create a "🚀 Version Packages" PR
+2. When merged, publish to npm and create GitHub releases
+3. Upload cross-platform CLI binaries
 
 ## Best Practices
 
@@ -584,86 +294,56 @@ This Git Flow approach provides:
 - **One changeset per logical change**: Don't bundle unrelated changes
 - **Clear summaries**: Write meaningful changeset descriptions
 - **Appropriate version bumps**: Follow semantic versioning principles
-- **Test before release**: Always test changes before publishing
+- **Let automation handle publishing**: Never run manual release commands
 
 ### 2. Version Bump Guidelines
 
 **Patch (0.0.X)**
-- Bug fixes
-- Documentation updates
-- Internal refactoring without API changes
-- Dependency updates (non-breaking)
+- Bug fixes, documentation updates, dependency updates (non-breaking)
 
-**Minor (0.X.0)**
-- New features
-- New CLI options or flags
-- New export functions
-- Backward-compatible changes
+**Minor (0.X.0)**  
+- New features, new CLI options, backward-compatible changes
 
 **Major (X.0.0)**
-- Breaking API changes
-- Removed functions or options
-- Changed function signatures
-- Required Node.js version changes
+- Breaking API changes, removed functions, changed signatures
 
-### 3. Release Timing
-- **Regular releases**: Aim for consistent release schedule
-- **Security patches**: Release immediately for security fixes
-- **Breaking changes**: Communicate well in advance
-- **Coordinate releases**: Ensure related packages are updated together
+### 3. Communication
+- **Quality changelogs**: GitHub automation generates linked changelogs
+- **Release notes**: GitHub releases are created automatically with changelogs
+- **Breaking changes**: Communicate in changeset descriptions
 
-### 4. Communication
-- **Changelog quality**: Maintain clear, user-focused changelogs
-- **Migration guides**: Provide upgrade instructions for breaking changes
-- **Release notes**: Highlight important changes in GitHub releases
-
-## Troubleshooting
+## Troubleshooting Automated Releases
 
 ### Common Issues
 
-**"No changesets found"**
+**"No changesets found when trying to release"**
 ```bash
 # Create a changeset first
 bun changeset
-
-# Or create empty changeset for non-package changes
-bun changeset --empty
+# Then commit and push to trigger automation
 ```
 
-**"Package not published"**
-- Check package.json `private` field (should be false for published packages)
-- Verify npm authentication: `npm whoami`
-- Check if version already exists: `npm view <package-name> versions --json`
-
-**"Git tag already exists"**
+**"GitHub Actions failing"**
 ```bash
-# Remove local tag
-git tag -d <tag-name>
+# Check workflow status
+gh run list --workflow=changesets.yml
 
-# Remove remote tag (careful!)
-git push origin --delete <tag-name>
+# View logs for debugging
+gh run view --log
 ```
 
-**"Dependency version conflicts"**
-- Update internal dependencies: Set `updateInternalDependencies` in config
-- Use `bun changeset version --ignore <package-name>` to skip specific packages
+**"Release PR not created"**
+- Verify PAT_TOKEN and NPM_TOKEN secrets are set
+- Check workflow permissions in GitHub Actions
+- Ensure changesets exist in `.changeset/` directory
+
+**"Package not published to npm"** 
+- Check NPM_TOKEN is valid: Test token permissions
+- Verify package.json `private` field is `false`
+- Check GitHub Actions logs for npm publish errors
 
 ### Getting Help
 
 - **Changesets docs**: https://github.com/changesets/changesets
-- **npm publish docs**: https://docs.npmjs.com/cli/v8/commands/npm-publish
-- **Semantic versioning**: https://semver.org/
-
-## Available Scripts
-
-The following npm scripts are available for release management:
-
-```json
-{
-  "changeset": "changeset",
-  "version:packages": "changeset version",
-  "release": "changeset publish"
-}
-```
-
-Use these scripts consistently across the project for release operations.
+- **GitHub Actions docs**: https://docs.github.com/en/actions
+- **View automation logs**: `gh run view --log`

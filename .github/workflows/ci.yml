@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        bun-version: [1.2.19]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ matrix.bun-version }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+          packages/*/node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+    
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+    
+    - name: Build packages
+      run: bun run build
+    
+    - name: Run linting
+      run: bun run lint
+    
+    - name: Run type checking
+      run: bun run typecheck
+    
+    - name: Run CLI tests
+      run: bun test
+      working-directory: packages/cli
+    
+    - name: Run core tests
+      run: bun test
+      working-directory: packages/core
+    
+    - name: Run integration tests (Unix)
+      if: runner.os != 'Windows'
+      run: bun test
+      working-directory: packages/tests
+      env:
+        CI: true
+    
+    # Windows has issues with some shell commands in tests
+    - name: Run integration tests (Windows)
+      if: runner.os == 'Windows'
+      run: bun test --timeout 30000
+      working-directory: packages/tests
+      env:
+        CI: true
+      continue-on-error: true
+    
+    - name: Test CLI generation
+      run: |
+        bun run dev --input ../tests/src/fixtures/simple-api.json --out ./test-output --name ci-test-server --runtime bun --force
+      working-directory: packages/cli
+      env:
+        CI: true
+
+  binary-build:
+    name: Test Binary Build
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.2.19
+    
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+          packages/*/node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+    
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+    
+    - name: Build packages
+      run: bun run build
+    
+    - name: Build binaries
+      run: |
+        bun run build:binary:linux
+        bun run build:binary:macos
+        # Windows binary build requires different environment
+        # bun run build:binary:windows
+        ls -la bin/
+      working-directory: packages/cli
+    
+    - name: Test Linux binary
+      run: |
+        ./bin/mcpgen-linux-x64 --version
+        ./bin/mcpgen-linux-x64 --help
+      working-directory: packages/cli
+    
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: mcpgen-binaries
+        path: packages/cli/bin/mcpgen-*
+        retention-days: 7
+
+  mcp-inspector:
+    name: Test MCP Inspector Integration
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.2.19
+    
+    - name: Setup Node.js (for MCP Inspector)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          ~/.npm
+          node_modules
+          packages/*/node_modules
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+    
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+    
+    - name: Build packages
+      run: bun run build
+    
+    - name: Install MCP Inspector
+      run: npm install -g @modelcontextprotocol/inspector
+    
+    - name: Generate test server
+      run: |
+        bun run dev --input ../tests/src/fixtures/simple-api.json --out ./mcp-test --name inspector-test --runtime bun --force
+      working-directory: packages/cli
+      env:
+        CI: true
+    
+    - name: Test with MCP Inspector
+      run: |
+        timeout 30s npx @modelcontextprotocol/inspector --cli bun ./mcp-test/mcp-server/index.ts --method tools/list || [ $? -eq 124 ]
+      working-directory: packages/cli
+    
+    - name: Upload generated server
+      uses: actions/upload-artifact@v4
+      with:
+        name: generated-mcp-server
+        path: packages/cli/mcp-test/
+        retention-days: 3

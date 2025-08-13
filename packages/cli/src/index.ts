@@ -1,4 +1,7 @@
 import * as p from '@clack/prompts';
+import chalk from 'chalk';
+import boxen from 'boxen';
+import consola from 'consola';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import { OpenAPIMcpGenerator, suggestNameFromSpec, slugify } from '@workspace/core';
@@ -67,14 +70,23 @@ export function parseArgs(argv: string[]): Args {
 }
 
 function usage() {
-  const msg = `Usage:
-  mcpgen --input <openapi.(json|yaml)> --out <dir> [--name <server-name>] [--runtime bun|node] [--force]
-  mcpgen --config <config.yaml> [--out <dir>] [--force]
+  console.log(
+    boxen(chalk.cyanBright('🚀 OpenAPI MCP Generator'), {
+      padding: 1,
+      borderColor: 'cyan',
+      borderStyle: 'round',
+    })
+  );
 
-Examples:
-  mcpgen --input ./petstore.yaml --out ./output --name petstore-mcp
-  mcpgen --config ./mcpgen.config.yaml --out ./output`;
-  p.log.message(msg);
+  const msg = `${chalk.bold('Usage:')}
+  ${chalk.green('mcpgen')} ${chalk.yellow('--input')} ${chalk.blue('<openapi.(json|yaml)>')} ${chalk.yellow('--out')} ${chalk.blue('<dir>')} [${chalk.yellow('--name')} ${chalk.blue('<server-name>')}] [${chalk.yellow('--runtime')} ${chalk.blue('bun|node')}] [${chalk.yellow('--force')}]
+  ${chalk.green('mcpgen')} ${chalk.yellow('--config')} ${chalk.blue('<config.yaml>')} [${chalk.yellow('--out')} ${chalk.blue('<dir>')}] [${chalk.yellow('--force')}]
+
+${chalk.bold('Examples:')}
+  ${chalk.green('mcpgen')} ${chalk.yellow('--input')} ${chalk.blue('./petstore.yaml')} ${chalk.yellow('--out')} ${chalk.blue('./output')} ${chalk.yellow('--name')} ${chalk.blue('petstore-mcp')}
+  ${chalk.green('mcpgen')} ${chalk.yellow('--config')} ${chalk.blue('./mcpgen.config.yaml')} ${chalk.yellow('--out')} ${chalk.blue('./output')}`;
+  
+  console.log(msg);
 }
 
 function isSpecPathValid(path?: string): boolean {
@@ -101,12 +113,12 @@ export async function collectInputs(
       const out = args.out ?? 'output';
       const runtime: Runtime = 'bun';
       if (!isSpecPathValid(input)) {
-        p.log.error("Invalid or missing 'openapi' in config.yaml");
+        console.log(chalk.red("❌ Invalid or missing 'openapi' in config.yaml"));
         return null;
       }
       return { input, out, name, runtime, force: Boolean(args.force) };
     } catch (e) {
-      p.log.error(`Failed to read config: ${e instanceof Error ? e.message : String(e)}`);
+      console.log(chalk.red(`❌ Failed to read config: ${e instanceof Error ? e.message : String(e)}`));
       return null;
     }
   }
@@ -197,9 +209,7 @@ export async function collectInputs(
   const force = Boolean(args.force);
 
   if (!isSpecPathValid(input)) {
-    p.log.error(
-      'Invalid input path. Use a .yaml/.yml/.json file that exists.'
-    );
+    console.log(chalk.red('❌ Invalid input path. Use a .yaml/.yml/.json file that exists.'));
     return null;
   }
 
@@ -231,13 +241,30 @@ async function main() {
 
   if (args.version) {
     try {
-      // read package version from compiled bundle's nearby package.json during dev
-      const pkg = JSON.parse(
-        readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')
-      );
-      p.log.message(`mcpgen v${pkg.version ?? '0.0.0'}`);
+      // Use build-time constants if available (in binary), otherwise read package.json
+      const version = typeof BUILD_VERSION !== 'undefined' ? BUILD_VERSION : (() => {
+        const pkg = JSON.parse(
+          readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')
+        );
+        return pkg.version ?? '0.0.0';
+      })();
+      
+      const buildTime = typeof BUILD_TIME !== 'undefined' ? BUILD_TIME : 'unknown';
+      const buildTarget = typeof BUILD_TARGET !== 'undefined' ? BUILD_TARGET : 'unknown';
+      const gitCommit = typeof GIT_COMMIT !== 'undefined' ? GIT_COMMIT : 'unknown';
+      
+      console.log(chalk.cyan(`mcpgen v${version}`));
+      if (buildTime !== 'unknown') {
+        console.log(chalk.gray(`Built: ${buildTime}`));
+      }
+      if (buildTarget !== 'unknown') {
+        console.log(chalk.gray(`Target: ${buildTarget}`));
+      }
+      if (gitCommit !== 'unknown') {
+        console.log(chalk.gray(`Commit: ${gitCommit}`));
+      }
     } catch {
-      p.log.message('mcpgen');
+      console.log(chalk.cyan('mcpgen'));
     }
     process.exit(0);
   }
@@ -247,33 +274,58 @@ async function main() {
     process.exit(0);
   }
 
-  p.intro('🤖 OpenAPI MCP Generator');
+  // Welcome banner
+  console.log(
+    boxen(chalk.cyanBright('🤖 OpenAPI MCP Generator'), {
+      padding: 1,
+      borderColor: 'cyan',
+      borderStyle: 'round',
+    })
+  );
+
+  consola.info('Welcome!');
+  await p.intro(chalk.green('Let\'s generate your MCP server!'));
 
   const collected = await collectInputs(args);
   if (!collected) process.exit(1);
   const { input, out, name, runtime } = collected;
 
-  const spin = p.spinner();
-  spin.start('Parsing OpenAPI and generating MCP server');
+  // Enhanced spinner with @clack/prompts
+  const spinner = p.spinner();
+  spinner.start('Parsing OpenAPI specification...');
 
   try {
     const generator = new OpenAPIMcpGenerator({
       debug: false,
     });
 
+    spinner.message('Generating MCP server code...');
     const outputPath = resolve(process.cwd(), out, 'mcp-server', 'index.ts');
     await generator.generateFromOpenAPI(input, outputPath, name);
 
-    spin.stop('✅ Generation complete');
-    p.log.success(`Created server: ${name}`);
-    p.log.info(`Output: ${resolve(process.cwd(), out)}`);
-    p.log.message(`Start server:  cd ${out} && bun run start`);
-    p.log.message(`Run (stdio):   bun --bun ${outputPath}`);
-    p.outro('🎉 All set!');
+    spinner.stop('✅ Generation complete!');
+    
+    console.log(
+      boxen(
+        `${chalk.bold('Created server:')} ${chalk.cyanBright(name)}\n` +
+        `${chalk.bold('Output:')} ${chalk.blue(resolve(process.cwd(), out))}\n\n` +
+        `${chalk.bold('Quick start:')}\n` +
+        `${chalk.gray('cd')} ${chalk.yellow(out)} ${chalk.gray('&&')} ${chalk.yellow('bun run start')}\n` +
+        `${chalk.gray('Or run directly:')} ${chalk.yellow(`bun --bun ${outputPath}`)}`,
+        {
+          padding: 1,
+          borderColor: 'green',
+          borderStyle: 'round',
+        }
+      )
+    );
+
+    consola.success(`Project "${name}" created successfully!`);
+    p.outro(chalk.green('🎉 All set!'));
   } catch (err) {
-    spin.stop('❌ Failed');
-    p.log.error(err instanceof Error ? err.message : String(err));
-    p.cancel('Exiting');
+    spinner.stop('❌ Generation failed');
+    consola.error(`Generation failed: ${err instanceof Error ? err.message : String(err)}`);
+    p.cancel(chalk.red('Exiting'));
     process.exit(1);
   }
 }

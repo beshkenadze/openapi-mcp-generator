@@ -1,0 +1,3 @@
+openapi: ./simple-api.json
+name: fixture-test-mcp
+description: Test configuration for fixtures

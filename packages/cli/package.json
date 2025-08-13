@@ -8,18 +8,27 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": ["dist", "bin"],
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap && tsc -p tsconfig.json --emitDeclarationOnly && bun run ./scripts/add-shebang.ts",
+    "build:binary": "bun run ./scripts/build-binary.ts",
+    "build:binary:cross": "bun run ./scripts/build-cross-platform.ts",
+    "build:binary:linux": "bun build --compile --target=bun-linux-x64 --minify --sourcemap --define BUILD_VERSION='\"$(bun --version)\"' --define BUILD_TIME='\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"' --define BUILD_TARGET='\"linux-x64\"' src/index.ts --outfile bin/mcpgen-linux-x64",
+    "build:binary:macos": "bun build --compile --target=bun-darwin-x64 --minify --sourcemap --define BUILD_VERSION='\"$(bun --version)\"' --define BUILD_TIME='\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"' --define BUILD_TARGET='\"darwin-x64\"' src/index.ts --outfile bin/mcpgen-macos-x64",
+    "build:binary:windows": "bun build --compile --target=bun-windows-x64 --minify --sourcemap --define BUILD_VERSION='\"$(bun --version)\"' --define BUILD_TIME='\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"' --define BUILD_TARGET='\"windows-x64\"' src/index.ts --outfile bin/mcpgen-windows-x64.exe",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "test": "bun test"
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   },
   "dependencies": {
-    "@workspace/core": "workspace:*",
     "@clack/prompts": "^0.10.0",
+    "@workspace/core": "workspace:*",
+    "boxen": "^8.0.1",
+    "chalk": "^5.5.0",
+    "consola": "^3.4.2",
     "yaml": "^2.5.0"
   }
 }

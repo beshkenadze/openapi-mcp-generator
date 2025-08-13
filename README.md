@@ -1,5 +1,9 @@
 # OpenAPI → MCP Generator (Monorepo)
 
+[![Tests](https://github.com/USER/openapi-mcp-generator/workflows/Tests/badge.svg)](https://github.com/USER/openapi-mcp-generator/actions)
+[![CI](https://github.com/USER/openapi-mcp-generator/workflows/CI/badge.svg)](https://github.com/USER/openapi-mcp-generator/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Generate Model Context Protocol (MCP) servers from OpenAPI specifications. This monorepo contains the core generator library and a CLI, built with Bun, TypeScript, Turborepo, and Biome.
 
 ## Requirements

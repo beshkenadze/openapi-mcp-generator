@@ -367,10 +367,10 @@ server.registerTool(
     }
 
     if (schemaProps.length === 0) {
-      return "{}";
+      return "{ type: 'object' }";
     }
 
-    return `{\n    ${schemaProps.join(",\n    ")}\n  }`;
+    return `{\n    type: 'object',\n    properties: {\n      ${schemaProps.join(",\n      ")}\n    }\n  }`;
   }
 
   private openApiTypeToZod(schema?: OpenAPISchema): string {

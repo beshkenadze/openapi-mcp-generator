@@ -167,9 +167,9 @@ describe('Hono MCP Server Generation', () => {
     const readmeContent = readFileSync(join(outputDir, 'README.md'), 'utf8');
     expect(readmeContent).toContain('# test-hono-mcp');
     expect(readmeContent).toContain('Built with [Hono](https://hono.dev/)');
-    expect(readmeContent).toContain('**HTTP transport**: http://localhost:3000/mcp');
-    expect(readmeContent).toContain('**SSE transport**: http://localhost:3000/mcp/sse');
-    expect(readmeContent).toContain('**Stdio transport**: ws://localhost:3000/mcp/stdio');
+    expect(readmeContent).toContain('**HTTP transport**: `http://localhost:3000/mcp`');
+    expect(readmeContent).toContain('**SSE transport**: `http://localhost:3000/mcp/sse`');
+    expect(readmeContent).toContain('**Stdio transport**: `ws://localhost:3000/mcp/stdio`');
     
     // Verify Dockerfile exists
     const dockerfileContent = readFileSync(join(outputDir, 'Dockerfile'), 'utf8');

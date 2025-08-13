@@ -1,5 +1,12 @@
 # @aigentools/mcpgen-tests
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`e7a688e`](https://github.com/beshkenadze/openapi-mcp-generator/commit/e7a688e408e1db62fb6e3d4be9fc421e1261a346)]:
+  - @aigentools/mcpgen@0.1.2
+
 ## 0.0.2
 
 ### Patch Changes

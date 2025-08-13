@@ -250,14 +250,14 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Version packages
         run: |
           bun changeset version
@@ -266,31 +266,31 @@ jobs:
           git add .
           git commit -m "chore: version packages for release" || exit 0
           git push origin ${{ github.ref_name }}
-          
+
       - name: Run full test suite
         run: |
           bun run build
-          bun run typecheck  
+          bun run typecheck
           bun run lint
           bun run test
-          
+
       - name: Create Release PR
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: ${{ github.ref_name }}
           base: main
           title: "Release ${{ github.ref_name }}"
           body: |
             🚀 **Release ${{ github.ref_name }}**
-            
+
             This PR merges the release branch to main and will trigger publishing.
-            
+
             ## Changes
             - Automated version updates
             - Updated changelogs
             - All tests passing ✅
-            
+
             **After merging this PR:**
             - Packages will be published to npm
             - Git tags will be created
@@ -317,14 +317,14 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Publish packages
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -332,7 +332,7 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           bun changeset publish
           git push --follow-tags
-          
+
       - name: Merge back to develop
         run: |
           git checkout develop
@@ -365,14 +365,14 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Check for changesets
         id: changeset-status
         run: |
@@ -383,7 +383,7 @@ jobs:
             echo "has-changesets=false" >> $GITHUB_OUTPUT
             echo "No changesets found"
           fi
-        
+
       - name: Version packages
         if: steps.changeset-status.outputs.has-changesets == 'true'
         run: |
@@ -393,14 +393,14 @@ jobs:
           git add .
           git commit -m "chore: version packages for ${{ github.ref_name }}" || exit 0
           git push origin ${{ github.ref_name }}
-          
+
       - name: Run quality checks
         run: |
           bun run build
           bun run typecheck
           bun run lint
           bun run test
-          
+
       - name: Create changelog summary
         run: |
           echo "## Release Summary" > release-notes.md
@@ -413,11 +413,11 @@ jobs:
             awk '/^## / && ++count == 2 {exit} /^## / && count == 1 {next} count == 1' "$changelog" >> release-notes.md
             echo "" >> release-notes.md
           done
-          
+
       - name: Create Release PR to Main
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: ${{ github.ref_name }}
           base: main
           title: "🚀 Release ${{ github.ref_name }}"
@@ -438,7 +438,7 @@ on:
 jobs:
   publish:
     if: |
-      github.event.pull_request.merged == true && 
+      github.event.pull_request.merged == true &&
       contains(github.event.pull_request.head.ref, 'release/') &&
       contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: ubuntu-latest
@@ -446,35 +446,35 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Publish to npm
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           bun changeset publish
-          
+
       - name: Push tags
         run: git push --follow-tags
-        
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           tag_name: ${{ github.event.pull_request.head.ref }}
           release_name: Release ${{ github.event.pull_request.head.ref }}
           body: ${{ github.event.pull_request.body }}
           draft: false
           prerelease: false
-          
+
       - name: Merge back to develop
         run: |
           git fetch origin develop
@@ -515,7 +515,7 @@ Update `.changeset/config.json` for Git Flow:
   "commit": false,
   "fixed": [],
   "linked": [],
-  "access": "public", 
+  "access": "public",
   "baseBranch": "develop",
   "updateInternalDependencies": "patch",
   "ignore": []
@@ -540,19 +540,19 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Create emergency changeset
         run: |
           bun changeset --empty
           # Manually edit changeset for patch version
-          
+
       - name: Version and publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -563,7 +563,7 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           bun changeset publish
           git push --follow-tags
-          
+
       - name: Create PRs to main and develop
         run: |
           gh pr create --base main --title "Hotfix: ${{ github.ref_name }}"
@@ -590,7 +590,7 @@ This Git Flow approach provides:
 
 **Patch (0.0.X)**
 - Bug fixes
-- Documentation updates  
+- Documentation updates
 - Internal refactoring without API changes
 - Dependency updates (non-breaking)
 
@@ -661,7 +661,7 @@ The following npm scripts are available for release management:
 ```json
 {
   "changeset": "changeset",
-  "version:packages": "changeset version", 
+  "version:packages": "changeset version",
   "release": "changeset publish"
 }
 ```

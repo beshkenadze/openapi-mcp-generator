@@ -3,14 +3,14 @@ name: Hotfix Workflow
 on:
   push:
     branches:
-      - 'hotfix/**'
+      - "hotfix/**"
   workflow_dispatch:
     inputs:
       hotfix_branch:
-        description: 'Hotfix branch name (e.g., hotfix/v1.2.1)'
+        description: "Hotfix branch name (e.g., hotfix/v1.2.1)"
         required: true
       emergency:
-        description: 'Emergency hotfix (skip some checks)'
+        description: "Emergency hotfix (skip some checks)"
         type: boolean
         default: false
 
@@ -21,22 +21,22 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-          
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        
+
       - name: Check for existing changesets
         id: check-changesets
         run: |
@@ -47,30 +47,30 @@ jobs:
             echo "has-changesets=false" >> $GITHUB_OUTPUT
             echo "⚠️ No changesets found - will create emergency changeset"
           fi
-          
+
       - name: Create emergency changeset
         if: steps.check-changesets.outputs.has-changesets == 'false'
         run: |
           echo "🚨 Creating emergency changeset for hotfix..."
-          
+
           # Extract issue/description from branch name or commit message
           BRANCH_NAME="${{ github.ref_name }}"
           HOTFIX_NAME=${BRANCH_NAME#hotfix/}
-          
+
           # Create changeset content
           cat > .changeset/emergency-hotfix-$(date +%s).md << EOF
           ---
           "@aigentools/mcpgen-core": patch
           "@aigentools/mcpgen": patch
           ---
-          
+
           Emergency hotfix: $HOTFIX_NAME
-          
+
           This hotfix addresses a critical issue that requires immediate attention.
           EOF
-          
+
           echo "✅ Emergency changeset created"
-          
+
       - name: Run essential checks
         if: github.event.inputs.emergency != 'true'
         run: |
@@ -78,51 +78,51 @@ jobs:
           bun run build
           bun run typecheck
           # Skip lint and full test suite for emergency hotfixes
-          
+
       - name: Version packages
         run: |
           echo "🔄 Processing changesets and updating versions..."
           bun changeset version
-          
+
           # Configure git for commits
           git config user.name "hotfix-bot[bot]"
           git config user.email "hotfix-bot[bot]@users.noreply.github.com"
-          
+
           # Commit version changes
           git add .
           git commit -m "hotfix: version packages for ${{ github.ref_name }} [skip ci]" || echo "No changes to commit"
-          
+
       - name: Build and test hotfix
         if: github.event.inputs.emergency != 'true'
         run: |
           echo "🏗️ Building packages..."
           bun run build
-          
+
           echo "🧪 Running critical tests..."
           bun run test || echo "⚠️ Some tests failed but continuing with hotfix"
         env:
           NODE_ENV: test
-          
+
       - name: Publish hotfix
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "🚀 Publishing hotfix packages..."
-          
+
           # Configure npm authentication
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          
+
           # Publish packages
           bun changeset publish
-          
+
           echo "✅ Hotfix packages published successfully!"
-          
+
       - name: Push tags
         run: |
           echo "🏷️ Pushing git tags..."
           git push origin ${{ github.ref_name }}
           git push --follow-tags
-          
+
       - name: Extract version from branch name
         id: version
         run: |
@@ -130,32 +130,32 @@ jobs:
           VERSION=${BRANCH_NAME#hotfix/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "🏷️ Extracted version: $VERSION"
-          
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.version }}
           release_name: "🚨 Hotfix ${{ steps.version.outputs.version }}"
           body: |
             ## 🚨 Emergency Hotfix Release
-            
+
             This hotfix addresses a critical issue that required immediate attention.
-            
+
             ### 🔧 Fixed Issues
             - Critical bug fix for production environment
             - Immediate resolution required
-            
+
             ### 📦 Published Packages
-            - `@aigentools/mcpgen-core` 
+            - `@aigentools/mcpgen-core`
             - `@aigentools/mcpgen`
-            
+
             ### ⚠️ Important Notes
             - This is a hotfix release created from branch: `${{ github.ref_name }}`
             - Please update your dependencies as soon as possible
             - Full regression testing will be performed in the next regular release
-            
+
             ### 🛠️ Installation
             ```bash
             npm install @aigentools/mcpgen@${{ steps.version.outputs.version }}
@@ -163,59 +163,59 @@ jobs:
             ```
           draft: false
           prerelease: false
-          
+
       - name: Create PR to main
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: ${{ github.ref_name }}
           base: main
           title: "🚨 Hotfix: ${{ github.ref_name }}"
           body: |
             ## 🚨 Emergency Hotfix
-            
+
             This hotfix has been automatically published to npm and needs to be merged to main.
-            
+
             **Hotfix Details:**
             - Branch: `${{ github.ref_name }}`
             - Version: `${{ steps.version.outputs.version }}`
             - Published: ✅ Already published to npm
-            
+
             **Next Steps:**
             1. ✅ Packages already published
             2. ⏳ Merge this PR to main
             3. ⏳ Will automatically create PR to develop
-            
+
             **⚠️ This hotfix was published before merge for emergency response.**
           labels: |
             hotfix
             emergency
             automated
-            
+
       - name: Create PR to develop
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: ${{ github.ref_name }}
           base: develop
           title: "🚨 Hotfix: ${{ github.ref_name }} (to develop)"
           body: |
             ## 🚨 Hotfix Merge to Develop
-            
+
             This hotfix needs to be merged to develop to keep branches in sync.
-            
+
             **Hotfix Details:**
             - Branch: `${{ github.ref_name }}`
             - Version: `${{ steps.version.outputs.version }}`
             - Published: ✅ Already published to npm
             - Main PR: Will be created separately
-            
+
             **This ensures develop branch includes the hotfix changes.**
           labels: |
             hotfix
             emergency
             automated
-            
+
       - name: Hotfix summary
         run: |
           echo "🎉 Hotfix ${{ steps.version.outputs.version }} completed!"

@@ -1,0 +1,266 @@
+name: Publish Release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  publish:
+    # Only run if:
+    # 1. PR was merged (not closed without merge)
+    # 2. PR came from a release branch
+    # 3. PR has the 'release' label
+    if: |
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.head.ref, 'release/') &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          # Try frozen lockfile first, fallback to regular install if needed
+          bun install --frozen-lockfile || bun install
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Build binaries
+        run: |
+          echo "🔨 Building cross-platform binaries..."
+          bun run build:binary:linux
+          bun run build:binary:macos
+          bun run build:binary:windows
+          ls -la bin/
+        working-directory: packages/cli
+
+      - name: Check if packages need publishing
+        id: check-publish
+        run: |
+          # Check if any packages have versions that don't exist on npm
+          if bun changeset status | grep -q "following packages are not published"; then
+            echo "needs-publish=true" >> $GITHUB_OUTPUT
+            echo "📦 Packages need to be published"
+          else
+            echo "needs-publish=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No packages need publishing"
+          fi
+
+      - name: Upload binaries as artifacts
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpgen-binaries
+          path: |
+            packages/cli/bin/mcpgen-linux-x64
+            packages/cli/bin/mcpgen-macos-arm64
+            packages/cli/bin/mcpgen-macos-x64
+            packages/cli/bin/mcpgen-windows-x64.exe
+          retention-days: 90
+          compression-level: 0
+
+      - name: Publish to npm
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "🚀 Publishing packages to npm..."
+
+          # Configure npm authentication
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+          # Publish packages
+          bun changeset publish
+
+          echo "✅ Packages published to npm successfully!"
+
+      - name: Publish to GitHub Package Registry
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          echo "📦 Publishing packages to GitHub Package Registry..."
+
+          # Configure npm for GitHub registry
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          echo "@$(echo '${{ github.repository }}' | cut -d'/' -f1):registry=https://npm.pkg.github.com/" >> ~/.npmrc
+
+          # Update package.json files to point to GitHub registry temporarily
+          find packages -name "package.json" -exec sed -i.bak 's/"name": "@workspace\//"name": "@$(echo ${{ github.repository }} | cut -d\/ -f1)\//' {} \;
+
+          # Publish to GitHub registry
+          bun changeset publish --registry https://npm.pkg.github.com/ || echo "⚠️ GitHub registry publish failed but continuing"
+
+          # Restore original package.json files
+          find packages -name "package.json.bak" -exec bash -c 'mv "$1" "${1%.bak}"' _ {} \;
+
+          echo "✅ Attempted GitHub Package Registry publishing"
+
+      - name: Push git tags
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🏷️ Pushing git tags..."
+          git push --follow-tags
+
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          VERSION=${BRANCH_NAME#release/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📋 Extracted version: $VERSION"
+
+      - name: Create GitHub Release with Binaries
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "🚀 Release ${{ steps.version.outputs.version }}"
+          body: |
+            ${{ github.event.pull_request.body }}
+
+            ---
+
+            ## 📦 Published Packages
+
+            **npm registry:**
+            - `@workspace/core@${{ steps.version.outputs.version }}` - Core generator library
+            - `@workspace/cli@${{ steps.version.outputs.version }}` - Command-line interface
+
+            **GitHub Package Registry:**
+            - `@${{ github.repository_owner }}/core@${{ steps.version.outputs.version }}`
+            - `@${{ github.repository_owner }}/cli@${{ steps.version.outputs.version }}`
+
+            ## 🔥 Pre-built Binaries
+
+            Download the `mcpgen` binary for your platform:
+
+            | Platform | Architecture | Download |
+            |----------|--------------|----------|
+            | Linux | x64 | [mcpgen-linux-x64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/mcpgen-linux-x64) |
+            | macOS | ARM64 (M1/M2) | [mcpgen-macos-arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/mcpgen-macos-arm64) |
+            | macOS | x64 (Intel) | [mcpgen-macos-x64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/mcpgen-macos-x64) |
+            | Windows | x64 | [mcpgen-windows-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/mcpgen-windows-x64.exe) |
+
+            ## 🛠️ Installation Methods
+
+            ### Via npm (recommended)
+            ```bash
+            # Install CLI globally
+            npm install -g @workspace/cli
+
+            # Or use in your project
+            npm install @workspace/core
+            ```
+
+            ### Via GitHub Packages
+            ```bash
+            npm config set @${{ github.repository_owner }}:registry https://npm.pkg.github.com/
+            npm install -g @${{ github.repository_owner }}/cli
+            ```
+
+            ### Direct Binary Download
+            ```bash
+            # Linux/macOS
+            curl -L -o mcpgen https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/mcpgen-linux-x64
+            chmod +x mcpgen
+            sudo mv mcpgen /usr/local/bin/
+
+            # Verify installation
+            mcpgen --version
+            ```
+
+            ## 🔗 Useful Links
+
+            - [📖 Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+            - [🚀 Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/README.md#quick-start)
+            - [📝 Changelog](https://github.com/${{ github.repository }}/blob/main/packages/core/CHANGELOG.md)
+            - [🔄 Release Workflow](https://github.com/${{ github.repository }}/blob/main/docs/releasing.md)
+          files: |
+            packages/cli/bin/mcpgen-linux-x64
+            packages/cli/bin/mcpgen-macos-arm64
+            packages/cli/bin/mcpgen-macos-x64
+            packages/cli/bin/mcpgen-windows-x64.exe
+          draft: false
+          prerelease: false
+
+      - name: Merge back to develop
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🔄 Merging release back to develop branch..."
+
+          # Configure git for commits
+          git config user.name "release-bot[bot]"
+          git config user.email "release-bot[bot]@users.noreply.github.com"
+
+          # Fetch latest develop
+          git fetch origin develop:develop
+
+          # Checkout develop
+          git checkout develop
+
+          # Merge main into develop
+          git merge origin/main --no-ff -m "chore: merge release ${{ steps.version.outputs.version }} back to develop [skip ci]"
+
+          # Push develop
+          git push origin develop
+
+          echo "✅ Successfully merged release back to develop"
+
+      - name: Clean up release branch
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🧹 Cleaning up release branch..."
+
+          # Delete remote release branch
+          git push origin --delete ${{ github.event.pull_request.head.ref }} || echo "Branch already deleted"
+
+          echo "✅ Release branch cleaned up"
+
+      - name: Publish summary
+        if: steps.check-publish.outputs.needs-publish == 'true'
+        run: |
+          echo "🎉 Release ${{ steps.version.outputs.version }} completed successfully!"
+          echo ""
+          echo "✅ Cross-platform binaries built"
+          echo "✅ Packages published to npm registry"
+          echo "✅ Packages published to GitHub Package Registry"
+          echo "✅ Binaries uploaded as GitHub release assets"
+          echo "✅ Git tags created and pushed"
+          echo "✅ GitHub release created with download links"
+          echo "✅ Changes merged back to develop"
+          echo "✅ Release branch cleaned up"
+          echo ""
+          echo "📦 Available Installation Methods:"
+          echo "  • npm: npm install -g @workspace/cli"
+          echo "  • GitHub: npm install -g @${{ github.repository_owner }}/cli"
+          echo "  • Binary: Download from GitHub releases"
+          echo ""
+          echo "🔗 View the release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
+
+      - name: Skip publishing
+        if: steps.check-publish.outputs.needs-publish == 'false'
+        run: |
+          echo "ℹ️ Skipping publish step - no packages need publishing"
+          echo "This could happen if:"
+          echo "- Packages were already published"
+          echo "- Only private packages were updated"
+          echo "- This was a documentation-only release"

@@ -3,11 +3,11 @@ name: Release Branch Workflow
 on:
   push:
     branches:
-      - 'release/**'
+      - "release/**"
   workflow_dispatch:
     inputs:
       release_branch:
-        description: 'Release branch name (e.g., release/v1.2.0)'
+        description: "Release branch name (e.g., release/v1.2.0)"
         required: true
 
 jobs:
@@ -16,22 +16,22 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-          
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        
+
       - name: Check for changesets
         id: changeset-status
         run: |
@@ -42,17 +42,17 @@ jobs:
             echo "has-changesets=false" >> $GITHUB_OUTPUT
             echo "❌ No changesets found since main branch"
           fi
-        
+
       - name: Version packages
         if: steps.changeset-status.outputs.has-changesets == 'true'
         run: |
           echo "🔄 Processing changesets and updating versions..."
           bun changeset version
-          
+
           # Configure git for commits
           git config user.name "release-bot[bot]"
           git config user.email "release-bot[bot]@users.noreply.github.com"
-          
+
           # Commit version changes
           if git diff --staged --quiet && git diff --quiet; then
             echo "No changes to commit after versioning"
@@ -61,7 +61,7 @@ jobs:
             git commit -m "chore: version packages for ${{ github.ref_name }} [skip ci]" || echo "No changes to commit"
             git push origin ${{ github.ref_name }}
           fi
-          
+
       - name: Run quality checks
         run: |
           echo "🧪 Running quality checks..."
@@ -71,7 +71,7 @@ jobs:
           bun run test
         env:
           NODE_ENV: test
-          
+
       - name: Create changelog summary
         if: steps.changeset-status.outputs.has-changesets == 'true'
         run: |
@@ -80,7 +80,7 @@ jobs:
           echo "" >> release-notes.md
           echo "This release includes the following changes:" >> release-notes.md
           echo "" >> release-notes.md
-          
+
           # Process each package's changelog
           if find packages -name "CHANGELOG.md" -type f | head -1 > /dev/null 2>&1; then
             find packages -name "CHANGELOG.md" -type f | while read changelog; do
@@ -94,7 +94,7 @@ jobs:
                 esac
                 echo "### 📦 $pkg_name" >> release-notes.md
                 echo "" >> release-notes.md
-                
+
                 # Extract the latest version's changes (between first two ## headers)
                 if grep -q "^## " "$changelog"; then
                   awk '/^## / && ++count == 2 {exit} /^## / && count == 1 {next} count == 1 && NF' "$changelog" >> release-notes.md || true
@@ -106,7 +106,7 @@ jobs:
             echo "- Package versions updated according to changesets" >> release-notes.md
             echo "- All tests passing ✅" >> release-notes.md
           fi
-          
+
           echo "" >> release-notes.md
           echo "---" >> release-notes.md
           echo "" >> release-notes.md
@@ -115,12 +115,12 @@ jobs:
           echo "- 🏷️ Git tags will be created" >> release-notes.md
           echo "- 📋 GitHub release will be generated" >> release-notes.md
           echo "- 🔄 Changes will be merged back to develop" >> release-notes.md
-          
+
       - name: Create Release PR to Main
         if: steps.changeset-status.outputs.has-changesets == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: ${{ github.ref_name }}
           base: main
           title: "🚀 Release ${{ github.ref_name }}"
@@ -129,7 +129,7 @@ jobs:
             release
             automated
           reviewers: ${{ github.actor }}
-          
+
       - name: No changesets found
         if: steps.changeset-status.outputs.has-changesets == 'false'
         run: |

@@ -376,13 +376,14 @@ class OpenAPIMcpGenerator {
 		const schema: any = {
 			type: 'object',
 			properties,
+			additionalProperties: false,
 		};
 
 		if (required.length > 0) {
 			schema.required = required;
 		}
 
-		return JSON.stringify(schema, null, 2);
+		return JSON.stringify(schema);
 	}
 
 	private openApiSchemaToJsonSchema(schema?: OpenAPISchema): any {

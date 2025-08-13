@@ -8,7 +8,7 @@ import {
 	OpenAPIMcpGenerator,
 	suggestNameFromSpec,
 	slugify,
-} from "@workspace/core";
+} from "@aigentools/mcpgen-core";
 
 // Optional build-time constants injected by bun build scripts
 declare const BUILD_NAME: string | undefined;

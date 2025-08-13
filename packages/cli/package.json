@@ -1,7 +1,7 @@
 {
-	"name": "@workspace/cli",
+	"name": "@aigentools/mcpgen",
 	"version": "0.1.0",
-	"private": true,
+	"private": false,
 	"type": "module",
 	"bin": {
 		"mcpgen": "dist/index.js"
@@ -28,7 +28,7 @@
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.10.0",
-		"@workspace/core": "workspace:*",
+		"@aigentools/mcpgen-core": "workspace:*",
 		"boxen": "^8.0.1",
 		"chalk": "^5.5.0",
 		"consola": "^3.4.2",

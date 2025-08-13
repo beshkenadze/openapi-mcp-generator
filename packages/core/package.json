@@ -1,7 +1,7 @@
 {
-	"name": "@workspace/core",
+	"name": "@aigentools/mcpgen-core",
 	"version": "0.1.0",
-	"private": true,
+	"private": false,
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",

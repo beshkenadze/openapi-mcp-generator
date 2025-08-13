@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { validate, dereference } from "@scalar/openapi-parser";
+import { dereference } from "@scalar/openapi-parser";
 
 /**
  * Converts a string to slug format (lowercase, alphanumeric, dashes)

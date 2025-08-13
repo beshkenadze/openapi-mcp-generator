@@ -3,29 +3,35 @@ import { rmSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 // Mock the @clack/prompts module for testing
-const mockPrompts = {
-	group: async (prompts: any) => {
-		const results: any = {};
+type GroupContext = { results: Record<string, unknown> };
+const _mockPrompts = {
+	group: async (
+		prompts: Record<string, (ctx: GroupContext) => unknown | Promise<unknown>>,
+	) => {
+		const results: Record<string, unknown> = {};
 		for (const [key, promptFn] of Object.entries(prompts)) {
 			if (typeof promptFn === "function") {
-				const prompt = await (promptFn as Function)({ results });
+				const prompt = await (promptFn as (ctx: GroupContext) => unknown)({
+					results,
+				});
+				const promptObj = prompt as { message?: string };
 				// Simulate user input based on the prompt type
-				if (prompt.message?.includes("OpenAPI document")) {
+				if (promptObj.message?.includes("OpenAPI document")) {
 					results[key] = "./test.yaml";
-				} else if (prompt.message?.includes("runtime")) {
+				} else if (promptObj.message?.includes("runtime")) {
 					results[key] = "bun";
-				} else if (prompt.message?.includes("Server name")) {
+				} else if (promptObj.message?.includes("Server name")) {
 					results[key] = "test-server";
-				} else if (prompt.message?.includes("Output directory")) {
+				} else if (promptObj.message?.includes("Output directory")) {
 					results[key] = "./output";
 				}
 			}
 		}
 		return results;
 	},
-	isCancel: (value: any) => value === null,
-	cancel: (message: string) => null,
-	confirm: async (options: any) => true,
+	isCancel: (value: unknown) => value === null,
+	cancel: (_message: string) => null,
+	confirm: async (_options: unknown) => true,
 };
 
 // We can't directly test interactive prompts without mocking, but we can test the validation logic
@@ -120,10 +126,10 @@ describe("Prompt Flow Logic", () => {
 	test("should determine which prompts to show based on provided args", async () => {
 		// Test when no arguments are provided - should prompt for everything
 		const emptyArgs = {};
-		const shouldPromptInput = !emptyArgs.hasOwnProperty("input");
-		const shouldPromptOutput = !emptyArgs.hasOwnProperty("out");
-		const shouldPromptName = !emptyArgs.hasOwnProperty("name");
-		const shouldPromptRuntime = !emptyArgs.hasOwnProperty("runtime");
+		const shouldPromptInput = !Object.hasOwn(emptyArgs, "input");
+		const shouldPromptOutput = !Object.hasOwn(emptyArgs, "out");
+		const shouldPromptName = !Object.hasOwn(emptyArgs, "name");
+		const shouldPromptRuntime = !Object.hasOwn(emptyArgs, "runtime");
 
 		expect(shouldPromptInput).toBe(true);
 		expect(shouldPromptOutput).toBe(true);
@@ -132,8 +138,8 @@ describe("Prompt Flow Logic", () => {
 
 		// Test when some arguments are provided
 		const partialArgs = { input: "test.yaml", runtime: "bun" };
-		const shouldPromptInputPartial = !partialArgs.hasOwnProperty("input");
-		const shouldPromptRuntimePartial = !partialArgs.hasOwnProperty("runtime");
+		const shouldPromptInputPartial = !Object.hasOwn(partialArgs, "input");
+		const shouldPromptRuntimePartial = !Object.hasOwn(partialArgs, "runtime");
 
 		expect(shouldPromptInputPartial).toBe(false);
 		expect(shouldPromptRuntimePartial).toBe(false);

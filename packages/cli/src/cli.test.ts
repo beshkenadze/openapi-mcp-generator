@@ -96,8 +96,8 @@ describe("CLI Command Construction", () => {
 		// Test defaults
 		expect(args.input).toBe("./api.yaml");
 		expect(args.out).toBe("./output");
-		expect((args as any).name).toBeUndefined();
-		expect((args as any).runtime).toBeUndefined();
+		expect("name" in args).toBe(false);
+		expect("runtime" in args).toBe(false);
 	});
 });
 

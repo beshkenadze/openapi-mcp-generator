@@ -100,7 +100,7 @@ export interface OpenAPIComponents {
 	parameters?: Record<string, OpenAPIParameter>;
 	requestBodies?: Record<string, OpenAPIRequestBody>;
 	headers?: Record<string, OpenAPISchema>;
-	securitySchemes?: Record<string, any>;
+	securitySchemes?: Record<string, unknown>;
 }
 
 /**

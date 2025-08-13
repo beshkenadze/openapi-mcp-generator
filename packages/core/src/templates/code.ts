@@ -1,5 +1,8 @@
 // Lightweight tagged template for code generation with dedent and trimming
-export function code(strings: TemplateStringsArray, ...values: any[]): string {
+export function code(
+	strings: TemplateStringsArray,
+	...values: unknown[]
+): string {
 	// Interleave strings and values
 	let raw = "";
 	for (let i = 0; i < strings.length; i++) {
@@ -36,10 +39,11 @@ export function joinCode(
 		.join(sep);
 }
 
-function valueToString(v: any): string {
+function valueToString(v: unknown): string {
 	if (v === undefined || v === null || v === false) return "";
 	if (Array.isArray(v)) return v.map(valueToString).join("");
-	if (typeof v === "object" && "toString" in v) return String(v);
+	if (typeof v === "object" && v !== null && "toString" in (v as object))
+		return String(v);
 	return String(v);
 }
 

@@ -47,8 +47,45 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           
-      - name: Publish Summary
+      - name: Build Cross-Platform Binaries
         if: steps.changesets.outputs.published == 'true'
         run: |
+          echo "🔨 Building cross-platform binaries..."
+          cd packages/cli
+          bun run build:binary:cross
+          ls -la bin/
+          
+      - name: Upload Binaries to GitHub Release  
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          echo "📦 Uploading binaries to GitHub releases..."
+          
+          # Extract version from published packages
+          VERSION=$(echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | select(.name=="@aigentools/mcpgen") | .version')
+          if [ -z "$VERSION" ]; then
+            echo "❌ Could not extract version from published packages"
+            echo "Published packages: ${{ steps.changesets.outputs.publishedPackages }}"
+            exit 1
+          fi
+          
+          echo "📌 Version: $VERSION"
+          
+          # Upload binaries to the GitHub release created by changesets
+          cd packages/cli
+          gh release upload "v$VERSION" \
+            bin/mcpgen-linux-x64 \
+            bin/mcpgen-macos-x64 \
+            bin/mcpgen-windows-x64.exe \
+            --clobber
+            
+      - name: Publish Summary
+        if: steps.changesets.outputs.published == 'true'  
+        run: |
+          VERSION=$(echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | select(.name=="@aigentools/mcpgen") | .version')
           echo "🎉 New version published!"
-          echo "Published packages: ${{ steps.changesets.outputs.publishedPackages }}"
+          echo "📦 Published packages: ${{ steps.changesets.outputs.publishedPackages }}"
+          echo ""
+          echo "🚀 Install CLI: bunx @aigentools/mcpgen"
+          echo "📥 Download binaries: https://github.com/${{ github.repository }}/releases/tag/v$VERSION"

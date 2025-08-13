@@ -1,5 +1,15 @@
 # @aigentools/mcpgen
 
+## 0.1.2
+
+### Patch Changes
+
+- [`e7a688e`](https://github.com/beshkenadze/openapi-mcp-generator/commit/e7a688e408e1db62fb6e3d4be9fc421e1261a346) Thanks [@beshkenadze](https://github.com/beshkenadze)! - docs: update releasing documentation for fully automated workflow
+
+  - Updated docs/releasing.md to reflect GitHub Actions automation
+  - Removed manual release instructions
+  - Added monitoring and troubleshooting sections for automated releases
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 # OpenAPI → MCP Generator (Monorepo)
 
-[![Tests](https://github.com/USER/openapi-mcp-generator/workflows/Tests/badge.svg)](https://github.com/USER/openapi-mcp-generator/actions)
-[![CI](https://github.com/USER/openapi-mcp-generator/workflows/CI/badge.svg)](https://github.com/USER/openapi-mcp-generator/actions)
+[![Tests](https://github.com/beshkenadze/openapi-mcp-generator/workflows/Tests/badge.svg)](https://github.com/beshkenadze/openapi-mcp-generator/actions)
+[![CI](https://github.com/beshkenadze/openapi-mcp-generator/workflows/CI/badge.svg)](https://github.com/beshkenadze/openapi-mcp-generator/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Transform your OpenAPI specifications into powerful Model Context Protocol (MCP) servers that can be used with Claude Desktop, IDEs, and other MCP-compatible clients. This monorepo provides both a user-friendly CLI and a programmatic library for seamless integration.
@@ -24,7 +24,7 @@ Transform your OpenAPI specifications into powerful Model Context Protocol (MCP)
 
 ```bash
 # Clone and setup
-git clone <repository-url>
+git clone https://github.com/beshkenadze/openapi-mcp-generator.git
 cd openapi-mcp-generator
 bun install
 bun run build
@@ -678,7 +678,7 @@ We welcome contributions! Please:
 ### Development Setup
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/beshkenadze/openapi-mcp-generator.git
 cd openapi-mcp-generator
 bun install
 bun run build

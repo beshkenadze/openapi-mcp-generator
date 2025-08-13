@@ -1,4 +1,4 @@
-# @workspace/core
+# @aigentools/mcpgen-core
 
 Advanced generator library for creating MCP servers from OpenAPI specifications using AST manipulation.
 
@@ -17,7 +17,7 @@ Advanced generator library for creating MCP servers from OpenAPI specifications 
 The main generator class that converts OpenAPI specifications to MCP servers.
 
 ```ts
-import { OpenAPIMcpGenerator, type GeneratorOptions } from '@workspace/core';
+import { OpenAPIMcpGenerator, type GeneratorOptions } from '@aigentools/mcpgen-core';
 
 // Standard runtime (Bun/Node with stdio transport)
 const generator = new OpenAPIMcpGenerator();
@@ -71,7 +71,7 @@ import type {
   OpenAPIPath,
   OpenAPIInfo,
   OpenAPIComponents
-} from '@workspace/core';
+} from '@aigentools/mcpgen-core';
 ```
 
 ### Generator Options

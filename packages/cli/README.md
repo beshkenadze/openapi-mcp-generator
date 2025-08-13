@@ -1,4 +1,4 @@
-# @workspace/cli (mcpgen)
+# @aigentools/mcpgen
 
 CLI for generating an MCP server scaffold from an OpenAPI document.
 
@@ -53,7 +53,7 @@ runtime: hono  # optional: bun (default), node, or hono
 
 ## Dev
 - Run help from built binary: `bun --bun packages/cli/dist/index.js --help`
-- Build (bundled + d.ts): `bun run --filter @workspace/cli build`
+- Build (bundled + d.ts): `bun run --filter @aigentools/mcpgen build`
 - Typecheck: `bun run -w packages/cli typecheck`
 
 ## Tests
@@ -63,4 +63,4 @@ runtime: hono  # optional: bun (default), node, or hono
 ## Notes
 - Build uses Bun bundler for JS and `tsc --emitDeclarationOnly` for `.d.ts`.
 - A post-build step adds a `#!/usr/bin/env node` shebang to `dist/index.js` so the `bin` works.
-- The CLI delegates to `@workspace/core`.
+- The CLI delegates to `@aigentools/mcpgen-core`.

@@ -5,8 +5,8 @@ This document outlines the release process for the OpenAPI MCP Generator monorep
 ## Overview
 
 The project uses [Changesets](https://github.com/changesets/changesets) to manage versioning and releases across the monorepo packages:
-- `@workspace/core` - Core generator library
-- `@workspace/cli` - Command-line interface
+- `@aigentools/mcpgen-core` - Core generator library
+- `@aigentools/mcpgen` - Command-line interface
 
 ## Release Workflow
 
@@ -36,8 +36,8 @@ This will prompt you to:
 #### Example Changeset File
 ```yaml
 ---
-"@workspace/core": minor
-"@workspace/cli": patch
+"@aigentools/mcpgen-core": minor
+"@aigentools/mcpgen": patch
 ---
 
 Add support for Hono runtime with multiple transport protocols

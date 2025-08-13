@@ -1,4 +1,4 @@
-# @workspace/core
+# @aigentools/mcpgen-core
 
 ## 0.1.0
 

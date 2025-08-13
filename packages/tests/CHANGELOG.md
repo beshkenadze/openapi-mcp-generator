@@ -5,5 +5,5 @@
 ### Patch Changes
 
 - Updated dependencies []:
-  - @workspace/core@0.1.0
-  - @workspace/cli@0.1.0
+  - @aigentools/mcpgen-core@0.1.0
+  - @aigentools/mcpgen@0.1.0

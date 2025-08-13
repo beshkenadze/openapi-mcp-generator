@@ -11,8 +11,8 @@ bun run build
 
 Build specific package:
 ```bash
-bunx turbo run build --filter=@workspace/core
-bunx turbo run build --filter=@workspace/cli
+bunx turbo run build --filter=@aigentools/mcpgen-core
+bunx turbo run build --filter=@aigentools/mcpgen
 ```
 
 Type-checking:
@@ -59,13 +59,13 @@ This is a Turborepo monorepo using Bun as package manager and runtime. It genera
 
 ### Core Packages
 
-- **@workspace/core** (`packages/core/`): Core generator library that parses OpenAPI specs and generates MCP server code
+- **@aigentools/mcpgen-core** (`packages/core/`): Core generator library that parses OpenAPI specs and generates MCP server code
   - Entry: `src/index.ts`
   - Key exports: `generateServerFromOpenAPI`, `parseOpenApi`, `slugify`, `readTitleFromSpec`, `suggestNameFromSpec`
   - Generates single-file TypeScript MCP servers with Zod schema validation
   - Supports both JSON and YAML OpenAPI specs via @scalar/openapi-parser
 
-- **@workspace/cli** (`packages/cli/`): Command-line wrapper for the core generator
+- **@aigentools/mcpgen** (`packages/cli/`): Command-line wrapper for the core generator
   - Entry: `src/index.ts`
   - Interactive prompts using @clack/prompts
   - Parses CLI arguments for batch generation

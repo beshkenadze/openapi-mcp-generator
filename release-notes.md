@@ -2,7 +2,7 @@
 
 This release includes the following changes:
 
-### 📦 @workspace/core
+### 📦 @aigentools/mcpgen-core
 
 ### Minor Changes
 - [`89761ee`](https://github.com/beshkenadze/openapi-mcp-generator/commit/89761eec86b2766b07a8f088a8a43b97ca9c22ce) Thanks [@beshkenadze](https://github.com/beshkenadze)! - Initial release with complete OpenAPI MCP generator functionality
@@ -17,10 +17,10 @@ This release includes the following changes:
 
 ### Patch Changes
 - Updated dependencies [[`89761ee`](https://github.com/beshkenadze/openapi-mcp-generator/commit/89761eec86b2766b07a8f088a8a43b97ca9c22ce)]:
-  - @workspace/core@0.1.0
-  - @workspace/cli@0.1.0
+  - @aigentools/mcpgen-core@0.1.0
+  - @aigentools/mcpgen@0.1.0
 
-### 📦 @workspace/cli
+### 📦 @aigentools/mcpgen
 
 ### Minor Changes
 - [`89761ee`](https://github.com/beshkenadze/openapi-mcp-generator/commit/89761eec86b2766b07a8f088a8a43b97ca9c22ce) Thanks [@beshkenadze](https://github.com/beshkenadze)! - Initial release with complete OpenAPI MCP generator functionality
@@ -32,7 +32,7 @@ This release includes the following changes:
   - 🔄 Complete Git Flow automation with release branches
 ### Patch Changes
 - Updated dependencies [[`89761ee`](https://github.com/beshkenadze/openapi-mcp-generator/commit/89761eec86b2766b07a8f088a8a43b97ca9c22ce)]:
-  - @workspace/core@0.1.0
+  - @aigentools/mcpgen-core@0.1.0
 
 
 ---

@@ -194,22 +194,22 @@ tasks:
   build:core:
     desc: Build core package only (via turbo)
     cmds:
-      - bunx turbo run build --filter=@workspace/core
+      - bunx turbo run build --filter=@aigentools/mcpgen-core
 
   build:cli:
     desc: Build CLI package only (via turbo)
     cmds:
-      - bunx turbo run build --filter=@workspace/cli
+      - bunx turbo run build --filter=@aigentools/mcpgen
 
   typecheck:core:
     desc: Typecheck core only (via turbo)
     cmds:
-      - bunx turbo run typecheck --filter=@workspace/core
+      - bunx turbo run typecheck --filter=@aigentools/mcpgen-core
 
   typecheck:cli:
     desc: Typecheck CLI only (via turbo)
     cmds:
-      - bunx turbo run typecheck --filter=@workspace/cli
+      - bunx turbo run typecheck --filter=@aigentools/mcpgen
 
   test:cli:help:
     desc: Smoke test CLI help/version

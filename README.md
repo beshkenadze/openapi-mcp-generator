@@ -13,8 +13,8 @@ Transform your OpenAPI specifications into powerful Model Context Protocol (MCP)
 
 ## Monorepo Structure
 
-- `packages/core`: Core generator library (`@workspace/core`)
-- `packages/cli`: CLI (`@workspace/cli`, bin: `mcpgen`)
+- `packages/core`: Core generator library (`@aigentools/mcpgen-core`)
+- `packages/cli`: CLI (`@aigentools/mcpgen`, bin: `mcpgen`)
 - `packages/tsconfig`: Shared TS config
 - `turbo.json`: Turborepo pipeline
 - `biome.json`: Biome config
@@ -88,12 +88,12 @@ bun run dev --config config.yaml --out ./my-server
 
 Install in your project:
 ```bash
-bun add @workspace/core  # or npm install
+bun add @aigentools/mcpgen-core  # or npm install
 ```
 
 Generate servers programmatically:
 ```typescript
-import { generateServerFromOpenAPI } from "@workspace/core";
+import { generateServerFromOpenAPI } from "@aigentools/mcpgen-core";
 
 // Simple usage
 await generateServerFromOpenAPI(
@@ -344,7 +344,7 @@ cp .env.example .env
 
 ```typescript
 // generate-mcp.ts
-import { generateServerFromOpenAPI } from "@workspace/core";
+import { generateServerFromOpenAPI } from "@aigentools/mcpgen-core";
 
 async function generateMyAPI() {
   try {
@@ -456,8 +456,8 @@ bun run format
 bun run test
 
 # Target specific packages using Turborepo filters
-bunx turbo run build --filter=@workspace/core     # Build core package only
-bunx turbo run test --filter=@workspace/cli       # Test CLI package only
+bunx turbo run build --filter=@aigentools/mcpgen-core     # Build core package only
+bunx turbo run test --filter=@aigentools/mcpgen       # Test CLI package only
 bunx turbo run typecheck --filter=@workspace/*    # Type check all workspace packages
 ```
 

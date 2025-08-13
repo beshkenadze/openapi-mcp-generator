@@ -97,8 +97,8 @@ jobs:
             
             This release includes updates to the following packages:
             
-            - `@workspace/core` - Core generator library
-            - `@workspace/cli` - Command-line interface
+            - `@aigentools/mcpgen-core` - Core generator library
+            - `@aigentools/mcpgen` - Command-line interface
             
             ## 🔗 Useful Links
             
@@ -110,10 +110,10 @@ jobs:
             
             ```bash
             # Install CLI globally
-            npm install -g @workspace/cli
+            npm install -g @aigentools/mcpgen
             
             # Or use in your project
-            npm install @workspace/core
+            npm install @aigentools/mcpgen-core
             ```
           draft: false
           prerelease: false

@@ -3,8 +3,8 @@
 ## Project Structure & Module Organization
 - Monorepo (Bun + Turbo). Root: `turbo.json`, `biome.json`, `tsconfig.json`, `package.json`.
 - Packages:
-  - `@workspace/core`: generator library; OpenAPI via `@scalar/openapi-parser` (YAML fallback).
-  - `@workspace/cli`: `mcpgen` CLI (bundled for Node/Bun).
+  - `@aigentools/mcpgen-core`: generator library; OpenAPI via `@scalar/openapi-parser` (YAML fallback).
+  - `@aigentools/mcpgen`: `mcpgen` CLI (bundled for Node/Bun).
   - `@workspace/mcp-openapi-server`: MCP stdio server using the Petstore spec.
   - `@workspace/tsconfig`: shared TS config.
 - Tests: colocated as `*.test.ts` next to sources.
@@ -17,14 +17,14 @@
 - Lint/format: `bun run lint && bun run format`
 - CLI: build `bun run -w packages/cli build`; run `bun run packages/cli -- --help`
 - MCP server: dev `bun run -w packages/mcp-openapi-server dev`; build `bun run -w packages/mcp-openapi-server build`; inspector test `bun run -w packages/mcp-openapi-server test:inspector`
-- Turbo filters: `turbo run build --filter=@workspace/cli`
+- Turbo filters: `turbo run build --filter=@aigentools/mcpgen`
 - Taskfile (optional): `task build`, `task dev:server`, `task inspector:ui`
 
 ## Coding Style & Naming Conventions
 - TypeScript (ESM), strict types; avoid `any`.
 - Formatting/linting via Biome v2. Run `bun run format` and `bun run lint`.
 - Names: files/folders kebab-case; vars/functions camelCase; types/classes/interfaces PascalCase; constants UPPER_SNAKE.
-- Packages: scoped as `@workspace/*`; inter-deps via `workspace:*`.
+- Packages: scoped as `@aigentools/*` (published) or `@workspace/*` (internal); inter-deps via `workspace:*`.
 
 ## Testing Guidelines
 - Runner: Bun test (`bun test`).

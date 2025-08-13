@@ -9,7 +9,7 @@ if (!existsSync("./bin")) {
 
 // Get build metadata
 const pkg = JSON.parse(await Bun.file("package.json").text());
-const pkgName = String(pkg.name ?? "@workspace/cli");
+const pkgName = String(pkg.name ?? "@aigentools/mcpgen");
 const pkgVersion = String(pkg.version ?? "0.0.0");
 const buildTime = new Date().toISOString();
 const gitCommit =

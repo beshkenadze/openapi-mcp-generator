@@ -4,7 +4,7 @@ import {
 	slugify,
 	suggestNameFromSpec,
 	readTitleFromSpec,
-} from "@workspace/core";
+} from "@aigentools/mcpgen-core";
 
 describe("CLI Utilities", () => {
 	test("should generate slugified names correctly", () => {

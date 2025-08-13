@@ -86,7 +86,13 @@ jobs:
             find packages -name "CHANGELOG.md" -type f | while read changelog; do
               if [ -f "$changelog" ]; then
                 package_name=$(echo "$changelog" | sed 's|packages/||' | sed 's|/CHANGELOG.md||')
-                echo "### 📦 @workspace/$package_name" >> release-notes.md
+                # Map package directory name to actual published package name
+                case "$package_name" in
+                  "core") pkg_name="@aigentools/mcpgen-core" ;;
+                  "cli") pkg_name="@aigentools/mcpgen" ;;
+                  *) pkg_name="@workspace/$package_name" ;;
+                esac
+                echo "### 📦 $pkg_name" >> release-notes.md
                 echo "" >> release-notes.md
                 
                 # Extract the latest version's changes (between first two ## headers)

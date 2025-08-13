@@ -60,8 +60,8 @@ jobs:
           # Create changeset content
           cat > .changeset/emergency-hotfix-$(date +%s).md << EOF
           ---
-          "@workspace/core": patch
-          "@workspace/cli": patch
+          "@aigentools/mcpgen-core": patch
+          "@aigentools/mcpgen": patch
           ---
           
           Emergency hotfix: $HOTFIX_NAME
@@ -148,8 +148,8 @@ jobs:
             - Immediate resolution required
             
             ### 📦 Published Packages
-            - `@workspace/core` 
-            - `@workspace/cli`
+            - `@aigentools/mcpgen-core` 
+            - `@aigentools/mcpgen`
             
             ### ⚠️ Important Notes
             - This is a hotfix release created from branch: `${{ github.ref_name }}`
@@ -158,8 +158,8 @@ jobs:
             
             ### 🛠️ Installation
             ```bash
-            npm install @workspace/cli@${{ steps.version.outputs.version }}
-            npm install @workspace/core@${{ steps.version.outputs.version }}
+            npm install @aigentools/mcpgen@${{ steps.version.outputs.version }}
+            npm install @aigentools/mcpgen-core@${{ steps.version.outputs.version }}
             ```
           draft: false
           prerelease: false
